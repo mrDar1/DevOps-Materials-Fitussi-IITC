@@ -1,0 +1,18 @@
+# Main Docker Compose file for OpenTelemetry Course
+# This file includes the observability stack and (soon) application
+
+include:
+  # we include the Prometheus configuration file, which contains the global settings and the scrape configs for Prometheus. 
+  # This file is used by the Prometheus service defined in the compose.observability.yaml file to configure how Prometheus collects metrics from the targets and evaluates the rules. 
+  - compose.observability.yaml
+
+# Shared networks for all services
+networks:
+  # we define a network called "observability", which will be used to connect all the services in the observability stack, 
+  # such as Prometheus, Alertmanager, and Grafana. This allows them to communicate with each other without exposing their ports to the host, 
+  # and it also provides isolation from other services that are not part of the observability stack.
+  observability:
+    driver: bridge # the "bridge" driver is the default network driver in Docker, which creates a private internal network for the containers to communicate with each other.
+    name: observability # we specify the name of the network as "observability", which will be used to reference this network in the services that need to connect to it. This is optional, but it can help to avoid confusion and make it clear that this network is for the observability stack.
+#! 👉 The first observability is just the internal name used inside the Compose file, while name: observability sets the actual Docker network name created by Docker. 
+  

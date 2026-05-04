@@ -1,0 +1,35 @@
+# Prometheus setup for monitoring and alerting
+services:
+  # we define the Prometheus service, which is responsible for collecting metrics from the targets and evaluating the rules. We specify the image to use, the container name, the command to run, the volumes to mount, the ports to expose, the network to connect to, and the restart policy. 
+  prometheus:
+    # The image is the Docker image to use for the Prometheus service. We are using the official Prometheus image from Docker Hub, version 3.9.1. 
+    image: prom/prometheus:v3.9.1
+    # The container name is the name of the container that will be created for this service. We are naming it "prometheus".
+    container_name: prometheus
+    # The command is the command to run when the container starts. We are passing some arguments to the Prometheus binary to specify the configuration file, the storage path, and the retention time. The configuration file is mounted as a volume from the host, and it contains the global settings and the scrape configs for Prometheus. The storage path is where Prometheus will store the collected metrics data, and we are mounting a volume for that as well. The retention time is how long Prometheus will keep the collected data before it is deleted. In this case, we set it to 15 days.
+    command:
+      # the first command is to specify the configuration file for Prometheus, which is located at /etc/prometheus/prometheus.yml inside the container. We are mounting this file from the host, so we need to specify the path to it on the host as well.
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      # the second command is to specify the storage path for Prometheus, which is located at /prometheus inside the container. We are mounting a volume for this as well, so we need to specify the path to it on the host as well.
+      - '--storage.tsdb.path=/prometheus'
+      # the third command is to specify the retention time for Prometheus, which is how long it will keep the collected data before it is deleted. We set it to 15 days, which means that any data older than 15 days will be deleted automatically by Prometheus.
+      - '--storage.tsdb.retention.time=15d'
+    volumes:
+      # the first volume is to mount the configuration file for Prometheus, which is located at /etc/prometheus/prometheus.yml inside the container. We are mounting this file from the host, so we need to specify the path to it on the host as well. In this case, we are using a relative path to the prometheus.yml file in the current directory, and we are mounting it as read-only (ro) to prevent any accidental changes to it from inside the container.
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      # the second volume is to mount the storage path for Prometheus, which is located at /prometheus inside the container. We are mounting a volume for this as well, so we need to specify the path to it on the host as well. In this case, we are using a named volume called "prometheus-data", which will be created by Docker and managed automatically. This volume will persist the collected metrics data even if the container is stopped or removed.
+      - prometheus-data:/prometheus
+    ports:
+      # the ports section is to specify the ports to expose from the container to the host. We are exposing port 9090, which is the default port for Prometheus, so that we can access the Prometheus web interface and API from the host. We are mapping it to the same port on the host, so that we can access it at http://localhost:9090.
+      - '9090:9090'
+    networks:
+      # the networks section is to specify the networks to connect the container to.
+      # We are connecting it to a network called "observability", which we will define later in the file. 
+      # This allows us to communicate with other services that are connected to the same network, such as Alertmanager or Grafana, without exposing their ports to the host.
+      - observability
+    # the restart policy is to specify how Docker should handle the container if it stops or crashes. We are using "unless-stopped", which means that Docker will automatically restart the container if it stops or crashes, unless we explicitly stop it ourselves. This ensures that Prometheus will always be running and collecting metrics, even if there are temporary issues or failures.
+    restart: unless-stopped
+
+volumes:
+  # we define a named volume called "prometheus-data", which will be used to store the collected metrics data for Prometheus. This volume will persist the data even if the container is stopped or removed, and it will be managed automatically by Docker.
+  prometheus-data:

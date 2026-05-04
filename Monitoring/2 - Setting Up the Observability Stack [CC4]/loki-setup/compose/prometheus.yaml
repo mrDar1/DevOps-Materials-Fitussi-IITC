@@ -1,0 +1,29 @@
+# Globals means: this configuration will be applied to all the jobs and instances that are defined in this file.
+global:
+  # The scrape interval is the frequency at which Prometheus will scrape the targets. The default is every 1 minute. Here we set it to 15 seconds.
+  scrape_interval: 15s
+  # The evaluation interval is the frequency at which Prometheus will evaluate the rules. The default is every 1 minute. Here we set it to 15 seconds.
+  evaluation_interval: 15s
+
+  # e.g. prometheus will get data from the targets for 15 seconds, and as well every 15 seconds it will evaluate the rules. evaluation means it takes the data and 
+  # check if the rules are satisfied or not, and if they are satisfied it will trigger an alert. So in this case, every 15 seconds it will check if the rules are satisfied or not.
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+  - job_name: 'prometheus'
+
+  # The static_configs is a list of targets to scrape. In this case, we are scraping the Prometheus server itself, which is running on localhost:9090. 
+  # The targets can be specified as a list of strings, or as a list of dictionaries with additional labels.
+    static_configs:
+      - targets: ['localhost:9090']
+
+# 👉 Every 15 seconds:
+
+# Prometheus collects metrics (data)
+# Prometheus checks rules (to see if something is wrong)
+
+# 👉 It is collecting data from:
+# itself (localhost:9090)
+
+# 🧠 In one sentence:
+# Every 15 seconds, Prometheus monitors itself and checks if any alert conditions are met.
