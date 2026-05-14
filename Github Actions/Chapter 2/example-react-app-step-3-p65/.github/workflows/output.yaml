@@ -1,0 +1,28 @@
+name: Output information
+
+on: workflow_dispatch
+
+jobs:
+    info:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Output Github context
+              run: |
+                echo "Github context: ${{ toJson(github) }}"
+            - name: Output event context
+              run: |
+                echo "Event context: ${{ toJson(github.event) }}"
+            - name: Output workflow details
+              run: |
+                echo "Workflow name: ${{ github.workflow }}"
+                echo "Run id: ${{ github.run_id }}"
+                echo "Run number: ${{ github.run_number }}"
+            - name: Output repository details
+              run: |
+                echo "Repository: ${{ github.repository }}"
+                echo "Owner: ${{ github.repository_owner }}"
+                echo "Branch or tag: ${{ github.ref_name }}"
+            - name: Output runner details
+              run: |
+                echo "Runner OS: ${{ runner.os }}"
+                echo "Runner architecture: ${{ runner.arch }}"
