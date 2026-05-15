@@ -1,0 +1,126 @@
+name: Build & Upload Artifact
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          #? we define the cache path as ~/.npm to cache the npm dependencies
+          #? if exists, the cache will be restored before running the npm ci command
+          #?1 if the cache is not found, it will be created after running npm ci and stored for future runs
+          #? the next step will use this path to restore the cache and speed up the installation of dependencies
+          path: ~/.npm 
+          #? we generate a unique cache key based on the OS and the hash of the package-lock.json file
+          #? so it will preserve the cache for different OS and different dependency versions
+          #! EXAMPLE: linux-npm-abcdef1234567890
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          #? restore-keys is a fallback mechanism that allows the cache to be restored even if the exact key is not found
+          #! EXAMPLE: if the key linux-npm-abcdef1234567890 is not found, it will try to restore linux-npm- or npm- caches
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    outputs:
+      script-file: ${{ steps.publish.outputs.script-file }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build site
+        run: npm run build
+
+      - name: Publish JS filename
+        id: publish
+        run: echo "script-file=$(find dist/assets -name '*.js')" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-build
+          path: |
+            dist/
+            package.json
+          retention-days: 7 
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site-build
+
+      - name: Show built file name
+        run: |
+          echo "Built JS file: ${{ needs.build.outputs.script-file }}"
+
+      - name: List files
+        run: ls -la
+
+      - name: Deploy
+        run: |
+          echo "Deploying ${{ needs.build.outputs.script-file }}"

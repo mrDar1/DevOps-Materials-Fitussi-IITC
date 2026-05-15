@@ -1,0 +1,99 @@
+name: Build & Upload Artifact (No Cache)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    outputs:
+      # "steps" refrences to all the steps in the build job
+      # "publish" references to the step with id "publish"
+      # "outputs" references to the outputs of that step
+      # "script-file" is the output defined in the "publish" step like a variable
+      script-file: ${{ steps.publish.outputs.script-file }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build site
+        run: npm run build
+
+      - name: Publish JS filename
+        # This step publishes the filename of the built JavaScript file
+        # the step has a specific ENV variable GITHUB_OUTPUT that allows it to pass outputs to the job level
+        id: publish
+        run: echo "script-file=$(find dist/assets -name '*.js')" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-build-nocache
+          path: |
+            dist/
+            package.json
+          retention-days: 7 # This artifact will be available for 7 days
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site-build-nocache
+
+      - name: Show built file name
+        run: |
+          echo "Built JS file: ${{ needs.build.outputs.script-file }}"
+
+      - name: List files
+        run: ls -la
+
+      - name: Deploy
+        run: |
+          echo "Deploying ${{ needs.build.outputs.script-file }}"

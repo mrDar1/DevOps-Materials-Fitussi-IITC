@@ -1,0 +1,211 @@
+/* CSS-only artifact mark: a package box with up/down arrows */
+.artifact-mark {
+  position: relative;
+  width: 88px;
+  height: 88px;
+}
+
+.artifact-mark .box {
+  position: absolute;
+  inset: 26px 16px 6px;
+  border: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-bg);
+}
+
+.artifact-mark .box::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--accent-border);
+  transform: translateX(-50%);
+}
+
+.artifact-mark .arrow {
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-inline: 8px solid transparent;
+}
+
+.artifact-mark .arrow.up {
+  top: 0;
+  transform: translateX(-50%);
+  border-bottom: 13px solid var(--accent2);
+}
+
+.artifact-mark .arrow.down {
+  bottom: 28px;
+  transform: translateX(-50%);
+  border-top: 13px solid var(--accent2);
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 2vw, 1rem);
+  place-content: center;
+  place-items: center;
+  padding: clamp(1.5rem, 4vw, 2.25rem) clamp(1.25rem, 4vw, 2rem)
+    clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.lede {
+  max-width: 520px;
+  color: var(--text);
+}
+
+/* clean 1px divider — replaces the old triangle "ticks" */
+.ticks {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+#lesson {
+  padding: 28px 32px;
+  text-align: center;
+
+  @media (max-width: 1024px) {
+    padding: 22px 20px;
+  }
+}
+
+.hint {
+  color: var(--text);
+  font-size: 14px;
+  margin: 4px 0 16px;
+}
+
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.acc-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.acc-item.open {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow);
+}
+
+.acc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-h);
+  font: inherit;
+
+  strong {
+    display: block;
+    font-size: 16px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+}
+
+.acc-sum {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 3px;
+}
+
+.chevron {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--text);
+  border-bottom: 2px solid var(--text);
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+
+.acc-item.open .chevron {
+  transform: rotate(-135deg);
+}
+
+.acc-body {
+  padding: 0 20px 20px;
+  font-size: 15px;
+  line-height: 150%;
+
+  p {
+    margin: 0 0 10px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 150%;
+    margin: 0 0 10px;
+  }
+}
+
+#next-steps {
+  padding: 26px 32px 30px;
+  text-align: left;
+
+  @media (max-width: 1024px) {
+    padding: 22px 20px 26px;
+    text-align: center;
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 0;
+
+  @media (max-width: 1024px) {
+    justify-content: center;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 14px;
+    border-radius: 8px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 9px 15px;
+    align-items: center;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    transition: box-shadow 0.2s, border-color 0.2s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+      border-color: var(--accent-border);
+    }
+  }
+}
+
