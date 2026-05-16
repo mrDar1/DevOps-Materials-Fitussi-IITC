@@ -1,5 +1,6 @@
 
-FROM node:24-alpine
+# FROM node:24-alpine
+FROM gcr.io/distroless/nodejs24
 
 WORKDIR /app
 
