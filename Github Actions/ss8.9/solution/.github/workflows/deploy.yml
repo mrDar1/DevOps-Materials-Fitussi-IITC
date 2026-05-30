@@ -1,0 +1,140 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: student-api
+  CONTAINER_NAME: student-api
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: express-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    needs: lint
+    outputs:
+      image:    ${{ steps.push.outputs.image }}
+      registry: ${{ steps.ecr-login.outputs.registry }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        id: push
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/${{ env.ECR_REPOSITORY }}"
+
+          docker build \
+            --build-arg COMMIT_SHA=${{ github.sha }} \
+            -t "$IMAGE:${{ github.sha }}" \
+            -t "$IMAGE:latest" \
+            ./express-api
+
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+          echo "image=$IMAGE:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy via SSM
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Send deployment command via SSM
+        id: ssm
+        env:
+          IMAGE:    ${{ needs.build-and-push.outputs.image }}
+          REGISTRY: ${{ needs.build-and-push.outputs.registry }}
+        run: |
+          PARAMS=$(jq -cn \
+            --arg region   "${{ env.AWS_REGION }}" \
+            --arg registry "$REGISTRY" \
+            --arg image    "$IMAGE" \
+            --arg name     "${{ env.CONTAINER_NAME }}" \
+            '{commands: [
+              "aws ecr get-login-password --region \($region) | docker login --username AWS --password-stdin \($registry)",
+              "docker pull \($image)",
+              "docker stop \($name) 2>/dev/null || true",
+              "docker rm \($name) 2>/dev/null || true",
+              "docker run -d --name \($name) --restart unless-stopped -p 80:3000 \($image)"
+            ]}')
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids  "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters    "$PARAMS" \
+            --query         "Command.CommandId" \
+            --output        text)
+
+          echo "command-id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          echo "SSM command sent: $COMMAND_ID"
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ssm wait command-executed \
+            --command-id  "${{ steps.ssm.outputs.command-id }}" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
+
+      - name: Health check
+        run: |
+          EC2_IP="${{ secrets.EC2_PUBLIC_IP }}"
+          echo "Polling http://${EC2_IP}/health"
+
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${EC2_IP}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i/12: HTTP $STATUS — retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Health check failed after 2 minutes"
+          exit 1
