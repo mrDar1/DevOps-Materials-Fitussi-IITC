@@ -166,184 +166,160 @@ gh secret set MONGODB_URI --repo <your-username>/student-api
 
 ## Part C — AWS Infrastructure
 
-> All CLI commands below use `us-east-1`. If you use a different region, replace it everywhere.
-
-### Get your VPC and subnet IDs first
-
-Every resource below lives in the same VPC. Run this once and keep the output:
-
-```bash
-# Default VPC ID
-VPC_ID=$(aws ec2 describe-vpcs \
-  --filters "Name=isDefault,Values=true" \
-  --query "Vpcs[0].VpcId" --output text)
-echo "VPC_ID=$VPC_ID"
-
-# Default public subnets (need at least 2 AZs for ALB)
-aws ec2 describe-subnets \
-  --filters "Name=vpc-id,Values=$VPC_ID" "Name=default-for-az,Values=true" \
-  --query "Subnets[].[SubnetId,AvailabilityZone]" \
-  --output table
-```
-
-Pick at least 2 subnet IDs from different AZs. You'll use them in Tasks 9 and 10.
+> All steps below use region **us-east-1**. If you use a different region, switch it in the console region selector (top-right) and in every resource you create.
 
 ---
 
 ### Task 4 — Security Groups
 
-**Create `alb-sg` (for the Load Balancer):**
+**Navigate:** AWS Console → **EC2** → left sidebar → **Network & Security** → **Security Groups**
 
-```bash
-ALB_SG=$(aws ec2 create-security-group \
-  --group-name alb-sg \
-  --description "ALB security group for student-api" \
-  --vpc-id $VPC_ID \
-  --query "GroupId" --output text)
-echo "ALB_SG=$ALB_SG"
+#### Create `alb-sg` (for the Load Balancer)
 
-# Allow HTTP from anywhere
-aws ec2 authorize-security-group-ingress \
-  --group-id $ALB_SG \
-  --protocol tcp --port 80 --cidr 0.0.0.0/0
-```
+1. Click **Create security group** (orange button, top right).
+2. Fill in:
+   - **Security group name:** `alb-sg`
+   - **Description:** `ALB security group for student-api`
+   - **VPC:** select the **default VPC**
+3. Under **Inbound rules** → click **Add rule**:
+   - **Type:** `HTTP`
+   - **Source:** `Anywhere-IPv4` (`0.0.0.0/0`)
+4. Leave **Outbound rules** as-is (default allows all outbound).
+5. Click **Create security group**.
+6. **Copy the Security group ID** (looks like `sg-xxxxxxxxxxxxxxxxx`) — you need it next.
 
-**Create `ec2-sg` (for EC2 instances):**
+#### Create `ec2-sg` (for EC2 instances)
 
-```bash
-EC2_SG=$(aws ec2 create-security-group \
-  --group-name ec2-sg \
-  --description "EC2 security group for student-api" \
-  --vpc-id $VPC_ID \
-  --query "GroupId" --output text)
-echo "EC2_SG=$EC2_SG"
+1. Click **Create security group** again.
+2. Fill in:
+   - **Security group name:** `ec2-sg`
+   - **Description:** `EC2 security group for student-api`
+   - **VPC:** select the **default VPC**
+3. Under **Inbound rules** → click **Add rule**:
+   - **Type:** `Custom TCP`
+   - **Port range:** `3000`
+   - **Source:** `Custom` → paste the `alb-sg` security group ID (e.g. `sg-xxxxxxxx`)
+4. Leave **Outbound rules** as-is.
+5. Click **Create security group**.
 
-# Allow port 3000 ONLY from the ALB security group
-aws ec2 authorize-security-group-ingress \
-  --group-id $EC2_SG \
-  --protocol tcp --port 3000 \
-  --source-group $ALB_SG
-```
-
-> No port 22. No port 80 on EC2. Port 3000 is only reachable from the ALB. The default outbound `All traffic` rule allows SSM Agent to call AWS endpoints and Docker to pull images.
-
-**Verify:**
-```bash
-aws ec2 describe-security-groups \
-  --group-ids $ALB_SG $EC2_SG \
-  --query "SecurityGroups[].[GroupName,IpPermissions[*].[IpProtocol,FromPort,IpRanges[*].CidrIp,UserIdGroupPairs[*].GroupId]]" \
-  --output table
-```
+> No port 22. No port 80 on EC2. Port 3000 is only reachable from the ALB. The default outbound rule lets SSM Agent reach AWS endpoints and Docker pull from Docker Hub.
 
 ---
 
 ### Task 5 — EC2 IAM Role
 
-**Create the role:**
+**Navigate:** AWS Console → **IAM** → left sidebar → **Roles** → **Create role**
 
-```bash
-aws iam create-role \
-  --role-name student-api-ec2-role \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {"Service": "ec2.amazonaws.com"},
-      "Action": "sts:AssumeRole"
-    }]
-  }'
-```
+#### Step 1 — Select trusted entity
 
-**Attach SSM managed policy (allows SSM Agent to function):**
+- **Trusted entity type:** `AWS service`
+- **Service or use case:** `EC2`
+- Click **Next**.
 
-```bash
-aws iam attach-role-policy \
-  --role-name student-api-ec2-role \
-  --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-```
+#### Step 2 — Add permissions
 
-**Add inline policy to read SSM Parameter Store secrets:**
+- Search for `AmazonSSMManagedInstanceCore` → check the box next to it.
+- Click **Next**.
 
-```bash
-aws iam put-role-policy \
-  --role-name student-api-ec2-role \
-  --policy-name StudentApiParameterStoreRead \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
+#### Step 3 — Name and create
+
+- **Role name:** `student-api-ec2-role`
+- Click **Create role**.
+
+#### Step 4 — Add inline policy
+
+1. Find `student-api-ec2-role` in the Roles list → click it.
+2. On the **Permissions** tab → click **Add permissions** → **Create inline policy**.
+3. Click the **JSON** tab (top of the policy editor).
+4. Replace the content with:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
       "Effect": "Allow",
       "Action": ["ssm:GetParameter", "ssm:GetParameters"],
       "Resource": "arn:aws:ssm:*:*:parameter/student-api/*"
-    }]
-  }'
+    }
+  ]
+}
 ```
 
-**Create the instance profile** (EC2 requires a profile wrapper around the role — the console creates this automatically; the CLI requires it manually):
+5. Click **Next**.
+6. **Policy name:** `StudentApiParameterStoreRead`
+7. Click **Create policy**.
 
-```bash
-aws iam create-instance-profile \
-  --instance-profile-name student-api-ec2-role
-
-aws iam add-role-to-instance-profile \
-  --instance-profile-name student-api-ec2-role \
-  --role-name student-api-ec2-role
-```
-
-Wait ~10 seconds for IAM to propagate before continuing.
+> The console automatically creates the instance profile when you create the role via the console — you do not need to create it separately.
 
 ---
 
 ### Task 6 — Store Docker Hub credentials in SSM Parameter Store
 
-> The MongoDB URI is synced automatically by the deploy pipeline. Store Docker Hub credentials once manually.
+**Navigate:** AWS Console → **Systems Manager** → left sidebar → **Parameter Store** → **Create parameter**
 
-```bash
-aws ssm put-parameter \
-  --name /student-api/dockerhub/username \
-  --value "<your-dockerhub-username>" \
-  --type String \
-  --overwrite \
-  --region us-east-1
+#### Parameter 1 — Docker Hub username
 
-aws ssm put-parameter \
-  --name /student-api/dockerhub/token \
-  --value "<your-dockerhub-token>" \
-  --type SecureString \
-  --overwrite \
-  --region us-east-1
-```
+- **Name:** `/student-api/dockerhub/username`
+- **Tier:** `Standard`
+- **Type:** `String`
+- **Data type:** `text`
+- **Value:** your Docker Hub username
+- Click **Create parameter**.
 
-The pipeline will create `/student-api/mongodb/uri` automatically on first deploy.
+#### Parameter 2 — Docker Hub token
 
-**Verify:**
-```bash
-aws ssm get-parameter --name /student-api/dockerhub/username --query "Parameter.Value" --output text
-aws ssm get-parameter --name /student-api/dockerhub/token --with-decryption --query "Parameter.Value" --output text
-```
+- Click **Create parameter** again.
+- **Name:** `/student-api/dockerhub/token`
+- **Tier:** `Standard`
+- **Type:** `SecureString`
+- **KMS key source:** `My current account` → `alias/aws/ssm` (default)
+- **Value:** your Docker Hub access token
+- Click **Create parameter**.
+
+> The pipeline creates `/student-api/mongodb/uri` automatically on first deploy — do not create it manually.
+
+**Verify:** Both parameters now appear in the Parameter Store list with names `/student-api/dockerhub/username` and `/student-api/dockerhub/token`.
 
 ---
 
 ### Task 7 — Launch Template
 
-Get the latest Ubuntu 22.04 LTS AMI:
+**Navigate:** AWS Console → **EC2** → left sidebar → **Instances** → **Launch Templates** → **Create launch template**
+
+#### Template settings
+
+- **Launch template name:** `student-api-lt`
+- **Template version description:** `v1`
+- Leave **Auto Scaling guidance** checkbox unchecked for now.
+
+#### Application and OS Images (AMI)
+
+- Click **Browse more AMIs**.
+- In the search box type `ubuntu 22.04` → press Enter.
+- Select the **AWS Marketplace** tab or **Community AMIs**.
+- Find **Ubuntu Server 22.04 LTS (HVM), SSD Volume Type** published by **Canonical** (owner: `099720109477`).
+- Click **Select**.
+
+#### Instance type
+
+- Select `t3.micro`.
+
+#### Key pair
+
+- **Key pair name:** `Don't include in launch template` (or select "Proceed without a key pair").
+
+#### Network settings
+
+- **Firewall (security groups):** `Select existing security group`
+- Select `ec2-sg` from the list.
+
+#### Advanced details (scroll to bottom)
+
+- **IAM instance profile:** select `student-api-ec2-role`.
+- **User data:** paste the entire script below into the text area:
 
 ```bash
-AMI=$(aws ec2 describe-images \
-  --owners 099720109477 \
-  --filters \
-    "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
-    "Name=state,Values=available" \
-  --query "sort_by(Images, &CreationDate)[-1].ImageId" \
-  --output text)
-echo "AMI=$AMI"
-```
-
-Create the launch template with user data that:
-1. Installs Docker and AWS CLI v2
-2. Auto-starts the app on launch (self-heal — new instances bootstrap without a pipeline run)
-
-```bash
-USER_DATA=$(base64 <<'USERDATA'
 #!/bin/bash
 set -e
 
@@ -378,100 +354,129 @@ if [ -n "$MONGO_URI" ]; then
     -e MONGODB_URI="$MONGO_URI" \
     "$DH_USER/student-api:latest" || true
 fi
-USERDATA
-)
-
-aws ec2 create-launch-template \
-  --launch-template-name student-api-lt \
-  --version-description "v1" \
-  --launch-template-data "{
-    \"ImageId\": \"$AMI\",
-    \"InstanceType\": \"t3.micro\",
-    \"IamInstanceProfile\": {\"Name\": \"student-api-ec2-role\"},
-    \"SecurityGroupIds\": [\"$EC2_SG\"],
-    \"UserData\": \"$USER_DATA\"
-  }"
 ```
 
-> The self-heal block runs at launch. If `/student-api/mongodb/uri` doesn't exist yet (before first deploy), it skips `docker run` gracefully. After the first pipeline push, all future replacement instances start automatically without any human intervention.
+- Click **Create launch template**.
+
+> The self-heal block runs at every instance launch. If `/student-api/mongodb/uri` doesn't exist yet (before first deploy), it skips `docker run` gracefully. After the first pipeline push, all future replacement instances start automatically without any human intervention.
 
 ---
 
 ### Task 8 — Target Group
 
-```bash
-TG_ARN=$(aws elbv2 create-target-group \
-  --name student-api-tg \
-  --protocol HTTP \
-  --port 3000 \
-  --vpc-id $VPC_ID \
-  --health-check-path /health \
-  --health-check-interval-seconds 30 \
-  --healthy-threshold-count 2 \
-  --unhealthy-threshold-count 3 \
-  --target-type instance \
-  --query "TargetGroups[0].TargetGroupArn" --output text)
-echo "TG_ARN=$TG_ARN"
-```
+**Navigate:** AWS Console → **EC2** → left sidebar → **Load Balancing** → **Target groups** → **Create target group**
+
+#### Step 1 — Specify group details
+
+- **Target type:** `Instances`
+- **Target group name:** `student-api-tg`
+- **Protocol:** `HTTP`
+- **Port:** `3000`
+- **VPC:** select the **default VPC**
+- **Protocol version:** `HTTP1`
+
+**Health checks:**
+- **Health check protocol:** `HTTP`
+- **Health check path:** `/health`
+- Expand **Advanced health check settings**:
+  - **Healthy threshold:** `2`
+  - **Unhealthy threshold:** `3`
+  - **Interval:** `30` seconds
+
+- Click **Next**.
+
+#### Step 2 — Register targets
+
+- Do not add any targets now — the ASG registers instances automatically.
+- Click **Create target group**.
 
 ---
 
 ### Task 9 — Application Load Balancer
 
-Replace `subnet-xxx` and `subnet-yyy` with at least 2 public subnet IDs from different AZs (from the query you ran earlier):
+**Navigate:** AWS Console → **EC2** → left sidebar → **Load Balancing** → **Load Balancers** → **Create load balancer**
+
+1. Select **Application Load Balancer** → **Create**.
+
+#### Basic configuration
+
+- **Load balancer name:** `student-api-alb`
+- **Scheme:** `Internet-facing`
+- **IP address type:** `IPv4`
+
+#### Network mapping
+
+- **VPC:** select the **default VPC**
+- **Mappings:** check at least **2 Availability Zones** (check all you see for maximum coverage).  
+  Each AZ shows a subnet — select the default subnet for each AZ you check.
+
+#### Security groups
+
+- Remove the default security group.
+- Select `alb-sg`.
+
+#### Listeners and routing
+
+- Protocol: `HTTP`, Port: `80`
+- **Default action:** Forward to → select `student-api-tg`
+
+- Click **Create load balancer**.
+
+2. After creation, click the load balancer name → find the **DNS name** field.  
+   It looks like: `student-api-alb-xxxxxxxxxx.us-east-1.elb.amazonaws.com`  
+   **Copy this DNS name** — it becomes the `ALB_DNS_NAME` GitHub secret.
 
 ```bash
-ALB_ARN=$(aws elbv2 create-load-balancer \
-  --name student-api-alb \
-  --subnets subnet-xxx subnet-yyy \
-  --security-groups $ALB_SG \
-  --scheme internet-facing \
-  --type application \
-  --query "LoadBalancers[0].LoadBalancerArn" --output text)
-echo "ALB_ARN=$ALB_ARN"
-
-# Get the DNS name — this becomes the ALB_DNS_NAME secret
-ALB_DNS=$(aws elbv2 describe-load-balancers \
-  --load-balancer-arns $ALB_ARN \
-  --query "LoadBalancers[0].DNSName" --output text)
-echo "ALB_DNS=$ALB_DNS"
-
-# Add listener: HTTP :80 → target group
-aws elbv2 create-listener \
-  --load-balancer-arn $ALB_ARN \
-  --protocol HTTP --port 80 \
-  --default-actions Type=forward,TargetGroupArn=$TG_ARN
-```
-
-Add the DNS name as a GitHub secret:
-
-```bash
-gh secret set ALB_DNS_NAME --repo <your-username>/student-api --body "$ALB_DNS"
+gh secret set ALB_DNS_NAME --repo <your-username>/student-api --body "<paste-dns-name>"
 ```
 
 ---
 
 ### Task 10 — Auto Scaling Group
 
-Use the same subnet IDs as the ALB:
+**Navigate:** AWS Console → **EC2** → left sidebar → **Auto Scaling** → **Auto Scaling Groups** → **Create Auto Scaling group**
+
+#### Step 1 — Name and launch template
+
+- **Auto Scaling group name:** `student-api-asg`
+- **Launch template:** select `student-api-lt`
+- **Version:** `Latest`
+- Click **Next**.
+
+#### Step 2 — Instance launch options
+
+- **VPC:** select the **default VPC**
+- **Availability Zones and subnets:** select the **same subnets** you used for the ALB (at least 2 AZs)
+- Click **Next**.
+
+#### Step 3 — Configure advanced options
+
+- **Load balancing:** `Attach to an existing load balancer`
+- **Attach to an existing load balancer:** `Choose from your load balancer target groups`
+- Select `student-api-tg | HTTP`
+- **Health checks:**
+  - Check **Turn on Elastic Load Balancing health checks**
+  - **Health check grace period:** `120` seconds
+- Click **Next**.
+
+#### Step 4 — Configure group size and scaling
+
+- **Desired capacity:** `1`
+- **Minimum capacity:** `1`
+- **Maximum capacity:** `2`
+- No scaling policies needed for this lab.
+- Click **Next**.
+
+#### Steps 5 & 6 — Notifications and Tags
+
+- **Tags:** Add a tag: Key = `Name`, Value = `student-api`, check **Tag new instances**
+- Click **Next** → **Create Auto Scaling group**.
 
 ```bash
-aws autoscaling create-auto-scaling-group \
-  --auto-scaling-group-name student-api-asg \
-  --launch-template "LaunchTemplateName=student-api-lt,Version=\$Latest" \
-  --min-size 1 \
-  --max-size 2 \
-  --desired-capacity 1 \
-  --vpc-zone-identifier "subnet-xxx,subnet-yyy" \
-  --target-group-arns $TG_ARN \
-  --health-check-type ELB \
-  --health-check-grace-period 120 \
-  --tags "Key=Name,Value=student-api,PropagateAtLaunch=true"
-
 gh secret set ASG_NAME --repo <your-username>/student-api --body "student-api-asg"
 ```
 
-> **Health check grace period = 120 seconds.** This gives the instance time to install Docker, pull the image, and start the container before ELB health checks can terminate it.
+> **Health check grace period = 120 seconds.** This gives the instance time to install Docker, pull the image, and start the container before ELB health checks can terminate it. The instance will appear **InService** only after `/health` returns 200 twice.
 
 ---
 
@@ -479,98 +484,110 @@ gh secret set ASG_NAME --repo <your-username>/student-api --body "student-api-as
 
 ### Task 11 — OIDC Provider and IAM Role
 
-**Step 1 — Add GitHub OIDC identity provider** (skip if it already exists in your account):
+#### Step 1 — Add the GitHub OIDC identity provider
 
-```bash
-# Check if it already exists
-aws iam list-open-id-connect-providers \
-  --query "OpenIDConnectProviderList[*].Arn" --output text
+**Navigate:** AWS Console → **IAM** → left sidebar → **Identity providers** → **Add provider**
 
-# If not listed, create it
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com \
-  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
-```
+- **Provider type:** `OpenID Connect`
+- **Provider URL:** `https://token.actions.githubusercontent.com` → click **Get thumbprint**
+- **Audience:** `sts.amazonaws.com`
+- Click **Add provider**.
 
-> The thumbprint `6938fd4d98bab03faadb97b34396831e3780aea1` is GitHub's well-known value. AWS now validates the OIDC provider by audience, not thumbprint, so this value is accepted regardless.
+> If you already see `token.actions.githubusercontent.com` in the Identity providers list, skip this step — it only needs to exist once per AWS account.
 
-**Step 2 — Get your account ID:**
+#### Step 2 — Create the IAM role
 
-```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-echo "ACCOUNT_ID=$ACCOUNT_ID"
-```
+**Navigate:** IAM → **Roles** → **Create role**
 
-**Step 3 — Create the IAM role** (replace `<GITHUB_USERNAME>` with your GitHub username):
+**Trusted entity type:** `Web identity`
 
-```bash
-aws iam create-role \
-  --role-name student-api-github-actions-role \
-  --assume-role-policy-document "{
-    \"Version\": \"2012-10-17\",
-    \"Statement\": [{
-      \"Effect\": \"Allow\",
-      \"Principal\": {
-        \"Federated\": \"arn:aws:iam::$ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com\"
+- **Identity provider:** `token.actions.githubusercontent.com`
+- **Audience:** `sts.amazonaws.com`
+- Click **Next**.
+
+**Add permissions:** skip for now (you'll add an inline policy after creation). Click **Next**.
+
+**Role name:** `student-api-github-actions-role` → Click **Create role**.
+
+#### Step 3 — Edit the trust policy to scope it to your repo
+
+1. Click `student-api-github-actions-role` in the Roles list.
+2. Click the **Trust relationships** tab → **Edit trust policy**.
+3. Replace the entire content with the JSON below.  
+   Replace `<ACCOUNT_ID>` with your 12-digit AWS account number (visible in the top-right of the console).  
+   Replace `<GITHUB_USERNAME>` with your GitHub username.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
       },
-      \"Action\": \"sts:AssumeRoleWithWebIdentity\",
-      \"Condition\": {
-        \"StringEquals\": {
-          \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\"
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
-        \"StringLike\": {
-          \"token.actions.githubusercontent.com:sub\": \"repo:<GITHUB_USERNAME>/student-api:*\"
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:<GITHUB_USERNAME>/student-api:*"
         }
       }
-    }]
-  }"
+    }
+  ]
+}
 ```
 
-**Step 4 — Attach permissions policy:**
+4. Click **Update policy**.
 
-```bash
-aws iam put-role-policy \
-  --role-name student-api-github-actions-role \
-  --policy-name StudentApiDeployPolicy \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Sid": "SSMDeploy",
-        "Effect": "Allow",
-        "Action": [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation",
-          "ssm:ListCommandInvocations"
-        ],
-        "Resource": "*"
-      },
-      {
-        "Sid": "SSMConfig",
-        "Effect": "Allow",
-        "Action": "ssm:PutParameter",
-        "Resource": "arn:aws:ssm:*:*:parameter/student-api/*"
-      },
-      {
-        "Sid": "ASGDescribe",
-        "Effect": "Allow",
-        "Action": "autoscaling:DescribeAutoScalingGroups",
-        "Resource": "*"
-      }
-    ]
-  }'
+#### Step 4 — Add inline permissions policy
+
+1. Still on `student-api-github-actions-role` → **Permissions** tab.
+2. Click **Add permissions** → **Create inline policy**.
+3. Click the **JSON** tab and paste:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SSMDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommandInvocations"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SSMConfig",
+      "Effect": "Allow",
+      "Action": "ssm:PutParameter",
+      "Resource": "arn:aws:ssm:*:*:parameter/student-api/*"
+    },
+    {
+      "Sid": "ASGDescribe",
+      "Effect": "Allow",
+      "Action": "autoscaling:DescribeAutoScalingGroups",
+      "Resource": "*"
+    }
+  ]
+}
 ```
 
-**Step 5 — Get the Role ARN and add as GitHub secret:**
+5. Click **Next** → **Policy name:** `StudentApiDeployPolicy` → **Create policy**.
+
+#### Step 5 — Copy the Role ARN and add as GitHub secret
+
+1. On the role's summary page, find the **ARN** at the top. It looks like:  
+   `arn:aws:iam::123456789012:role/student-api-github-actions-role`
+2. Copy it.
 
 ```bash
-ROLE_ARN=$(aws iam get-role \
-  --role-name student-api-github-actions-role \
-  --query "Role.Arn" --output text)
-echo "ROLE_ARN=$ROLE_ARN"
-
-gh secret set AWS_ROLE_ARN --repo <your-username>/student-api --body "$ROLE_ARN"
+gh secret set AWS_ROLE_ARN --repo <your-username>/student-api --body "<paste-role-arn>"
 ```
 
 **Verify all 6 secrets are set:**
@@ -581,12 +598,12 @@ gh secret list --repo <your-username>/student-api
 
 Expected output:
 ```
-ALB_DNS_NAME      ...
-ASG_NAME          ...
-AWS_ROLE_ARN      ...
-DOCKERHUB_TOKEN   ...
+ALB_DNS_NAME       ...
+ASG_NAME           ...
+AWS_ROLE_ARN       ...
+DOCKERHUB_TOKEN    ...
 DOCKERHUB_USERNAME ...
-MONGODB_URI       ...
+MONGODB_URI        ...
 ```
 
 ---
