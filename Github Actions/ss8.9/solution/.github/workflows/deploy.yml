@@ -1,0 +1,143 @@
+name: Deploy to ASG
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: express-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: express-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+  build-and-push:
+    name: Build & push to Docker Hub
+    runs-on: ubuntu-latest
+    needs: lint
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        id: push
+        run: |
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/student-api"
+          docker build \
+            --build-arg COMMIT_SHA="${{ github.sha }}" \
+            -t "$IMAGE:${{ github.sha }}" \
+            -t "$IMAGE:latest" \
+            ./express-api
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+          echo "image=$IMAGE:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy via SSM
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Send SSM command to all ASG instances
+        id: ssm
+        env:
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+        run: |
+          PARAMS=$(jq -cn \
+            --arg region "$AWS_REGION" \
+            --arg image "$IMAGE" \
+            --arg name "student-api" \
+            --arg sha "${{ github.sha }}" \
+            '{commands: [
+              "set -e",
+              "DH_USER=$(aws ssm get-parameter --region \($region) --name /student-api/dockerhub/username --query Parameter.Value --output text)",
+              "DH_TOKEN=$(aws ssm get-parameter --region \($region) --name /student-api/dockerhub/token --with-decryption --query Parameter.Value --output text)",
+              "echo \"$DH_TOKEN\" | docker login --username \"$DH_USER\" --password-stdin",
+              "docker pull \($image)",
+              "docker stop \($name) 2>/dev/null || true",
+              "docker rm \($name) 2>/dev/null || true",
+              "docker run -d --name \($name) --restart unless-stopped -p 3000:3000 -e COMMIT_SHA=\($sha) \($image)",
+              "echo \"Deployed \($image) successfully\""
+            ]}')
+
+          COMMAND_ID=$(aws ssm send-command \
+            --targets "Key=tag:aws:autoscaling:groupName,Values=${{ secrets.ASG_NAME }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "$PARAMS" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "command-id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          echo "SSM command dispatched: $COMMAND_ID"
+
+      - name: Wait for all in-service instances
+        run: |
+          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "${{ secrets.ASG_NAME }}" \
+            --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" \
+            --output text)
+
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "No in-service instances found in ASG"
+            exit 1
+          fi
+
+          for INSTANCE_ID in $INSTANCE_IDS; do
+            echo "Waiting for instance $INSTANCE_ID..."
+            aws ssm wait command-executed \
+              --command-id "${{ steps.ssm.outputs.command-id }}" \
+              --instance-id "$INSTANCE_ID"
+            echo "Instance $INSTANCE_ID: deployment complete"
+          done
+
+      - name: Health check via ALB
+        run: |
+          echo "Waiting for ALB health checks to pass..."
+          for i in $(seq 1 18); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://${{ secrets.ALB_DNS_NAME }}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Healthy at: http://${{ secrets.ALB_DNS_NAME }}"
+              echo "Version endpoint: http://${{ secrets.ALB_DNS_NAME }}/version"
+              exit 0
+            fi
+            echo "Attempt $i/18 — HTTP $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check timed out after 3 minutes"
+          exit 1
