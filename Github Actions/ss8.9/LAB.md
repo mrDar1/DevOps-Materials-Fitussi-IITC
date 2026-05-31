@@ -66,7 +66,16 @@ express-api/
 | `/items/:id` | PUT | Update item |
 | `/items/:id` | DELETE | Delete item (204 on success) |
 
-**Copy `express-api/` into your repo before starting.**
+**Create a new standalone GitHub repo for this lab.** Copy the contents of `express-api/` (not the folder itself) into the root of that repo. The workflows treat the repo root as the working directory — all source files, `package.json`, and `Dockerfile` live at root level, not inside a subdirectory.
+
+```bash
+gh repo create <your-username>/student-api --private
+cd /path/to/new/student-api-repo
+cp -r /path/to/express-api/. .
+mkdir -p .github/workflows
+# copy solution workflows into .github/workflows/
+git add . && git commit -m "feat: initial student-api" && git push
+```
 
 ---
 
@@ -74,7 +83,7 @@ express-api/
 
 | Concept | What you learn |
 |---------|----------------|
-| GitHub Actions multi-job pipelines | `needs`, `outputs`, job dependencies |
+| GitHub Actions multi-job pipelines | `needs`, job dependencies |
 | Service containers | Running MongoDB alongside CI test jobs |
 | Docker Hub | Private registry, access tokens, push/pull |
 | AWS OIDC | Passwordless AWS auth from GitHub Actions |
@@ -92,12 +101,12 @@ express-api/
 
 | Secret | Where to get it |
 |--------|----------------|
-| `AWS_ROLE_ARN` | Output of Task 9 (OIDC role ARN) |
+| `AWS_ROLE_ARN` | Output of Task 11 (OIDC role ARN) |
 | `DOCKERHUB_USERNAME` | Your Docker Hub username |
 | `DOCKERHUB_TOKEN` | Docker Hub → Account Settings → Security |
 | `MONGODB_URI` | MongoDB Atlas connection string |
-| `ASG_NAME` | Name you give the ASG in Task 8 |
-| `ALB_DNS_NAME` | DNS name from the ALB in Task 7 |
+| `ASG_NAME` | Name you give the ASG in Task 10 |
+| `ALB_DNS_NAME` | DNS name from the ALB in Task 9 |
 
 ---
 
@@ -192,6 +201,19 @@ Create an IAM role for EC2 instances.
 
 This grants access to ALL three secrets (`dockerhub/username`, `dockerhub/token`, `mongodb/uri`) with a single rule.
 
+**Create the instance profile** (EC2 requires a profile wrapper around the role — this is separate from the role itself):
+
+```bash
+aws iam create-instance-profile \
+  --instance-profile-name student-api-ec2-role
+
+aws iam add-role-to-instance-profile \
+  --instance-profile-name student-api-ec2-role \
+  --role-name student-api-ec2-role
+```
+
+> If you create the role in the console it creates the profile automatically. Via CLI you must do both steps manually.
+
 ### Task 6 — Store Docker Hub credentials in SSM Parameter Store
 
 > **Note:** The MongoDB URI is synced automatically by the deploy pipeline. You only need to put the Docker Hub credentials manually once.
@@ -201,12 +223,14 @@ aws ssm put-parameter \
   --name /student-api/dockerhub/username \
   --value "<your-dockerhub-username>" \
   --type String \
+  --overwrite \
   --region us-east-1
 
 aws ssm put-parameter \
   --name /student-api/dockerhub/token \
   --value "<your-dockerhub-token>" \
   --type SecureString \
+  --overwrite \
   --region us-east-1
 ```
 
@@ -417,7 +441,12 @@ The `build-and-push` job:
 1. Logs in with `docker/login-action@v3`
 2. Builds with `--build-arg COMMIT_SHA=${{ github.sha }}` (embedded in the image)
 3. Tags as `<username>/student-api:<sha>` + `<username>/student-api:latest`
-4. Pushes both tags; outputs full SHA-tagged URI for the deploy job
+4. Pushes both tags
+
+> **Do not use a job `output` to pass the image name to the deploy job.** GitHub Actions silently suppresses any job output whose value matches a registered secret. Since the image name contains `DOCKERHUB_USERNAME`, the output is swallowed and the deploy job receives an empty string. Instead, reconstruct the image name directly in the deploy job:
+> ```yaml
+> IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/student-api:${{ github.sha }}"
+> ```
 
 ---
 
@@ -458,6 +487,27 @@ docker run -d --name student-api --restart unless-stopped \
   <image>
 ```
 
+**First deploy on a fresh instance — timing note:**
+
+When the ASG launches a new EC2 instance, the user data script takes 3–5 minutes to install Docker and AWS CLI. SSM Agent is pre-installed on Ubuntu 22.04 and starts immediately, so it can receive Run Commands before user data finishes. To prevent the deploy script from failing with `aws: not found`, add wait loops at the top of the SSM command script:
+
+```bash
+# Wait for user data to finish installing AWS CLI and Docker
+for i in $(seq 1 30); do /usr/local/bin/aws --version >/dev/null 2>&1 && break; echo "Waiting for AWS CLI... $i/30"; sleep 10; done
+export PATH=$PATH:/usr/local/bin
+for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo "Waiting for Docker... $i/30"; sleep 10; done
+```
+
+**SSM race condition — always capture instance IDs before `send-command`:**
+
+The `wait` step must poll the same instances the command was sent to. If you query ASG InService instances separately (after sending the command), the ASG may have rotated an instance between the two calls, causing `InvocationDoesNotExist`. Capture IDs once, use the same list for both:
+
+```bash
+INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups ...)
+aws ssm send-command --instance-ids $INSTANCE_IDS ...
+# then wait using the same $INSTANCE_IDS
+```
+
 **Trigger a full pipeline run:**
 
 Push a commit to `main`. Watch all jobs run:
@@ -465,6 +515,8 @@ Push a commit to `main`. Watch all jobs run:
 ```
 lint → test → build-and-push → deploy
 ```
+
+> **Why do both `ci.yml` and `deploy.yml` run on push to `main`?** This is intentional. `ci.yml` runs on both push and pull_request — it's the fast feedback loop for PRs. `deploy.yml` runs on push to main only — it's the deployment gate. On a main push, both run in parallel; lint and test run twice. This is acceptable overhead for the lab. In production you'd typically skip the CI workflow on main or combine them.
 
 Once you see:
 ```

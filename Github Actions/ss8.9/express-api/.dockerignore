@@ -5,5 +5,4 @@ dist
 .env
 tests
 *.test.ts
-tsconfig.json
 vitest.config.ts

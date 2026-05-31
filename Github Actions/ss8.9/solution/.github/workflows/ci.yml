@@ -11,9 +11,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: express-api
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +18,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: express-api/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -43,10 +40,6 @@ jobs:
         ports:
           - 27017:27017
 
-    defaults:
-      run:
-        working-directory: express-api
-
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +47,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: express-api/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -76,4 +69,4 @@ jobs:
           docker build \
             --build-arg COMMIT_SHA="${{ github.sha }}" \
             -t student-api:ci \
-            ./express-api
+            .

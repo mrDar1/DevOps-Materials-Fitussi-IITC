@@ -8,7 +8,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
 });
 
