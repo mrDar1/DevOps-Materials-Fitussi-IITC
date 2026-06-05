@@ -9,5 +9,5 @@ spec:
     - name: traffic-generator
       image: lironefitoussi/traffic-generator:1.0.0
       args:
-        - "color-api-clusterip/api"
+        - "10.107.9.122/api"
         - "0.5"
