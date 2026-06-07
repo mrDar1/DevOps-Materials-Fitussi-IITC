@@ -9,5 +9,5 @@ spec:
     - name: traffic-generator
       image: lironefitoussi/traffic-generator:1.0.0
       args:
-        - "http://10.244.0.62/api"
+        - "http://10.244.0.29/api"
         - "0.5"
