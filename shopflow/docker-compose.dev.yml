@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      target: builder
+    command: npx nodemon src/index.js
+    volumes:
+      - ./backend/src:/app/src
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+
+  frontend:
+    volumes:
+      - ./frontend/src:/usr/share/nginx/html
