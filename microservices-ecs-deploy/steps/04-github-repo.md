@@ -145,8 +145,19 @@ It's a one-time, account-wide registration.
    > for the org, once for the repo). That's harmless — it's an OR list, so a
    > duplicate matches the same thing — but you can collapse it to the single
    > string above to keep it clean.
-7. On the role's **Summary** page, copy the **ARN** (it looks like
-   `arn:aws:iam::<ACCOUNT_ID>:role/github-actions-deploy`) — you need it in B.3.
+7. **Copy the _role_ ARN** (you need it in B.3). Go to the role's **Summary**
+   page — the **ARN** at the top contains **`:role/`**:
+   ```
+   arn:aws:iam::<ACCOUNT_ID>:role/github-actions-deploy
+   ```
+
+   > **Copy the role ARN, NOT the provider ARN.** The trust policy you just looked
+   > at in step 6 contains a *different* ARN with **`:oidc-provider/`** in it
+   > (`arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com`).
+   > That is the identity provider, **not** the role. If you store the
+   > `oidc-provider/...` ARN in B.3, `role-to-assume` can't assume it — STS
+   > rejects it, the deploy step prints **"Assuming role with OIDC"** over and over
+   > and then fails. The value you want has **`:role/`** in it.
 
 > **Why scope the `sub`?** Without the `StringLike` on `sub`, *any* GitHub repo
 > that can reach AWS could assume your role. The condition pins it to your repo
@@ -161,7 +172,9 @@ repo **variable**.
    **Secrets and variables** → **Actions**.
 2. Select the **Variables** tab → **New repository variable**.
 3. **Name:** `AWS_DEPLOY_ROLE_ARN`
-4. **Value:** the role ARN you copied in B.2.
+4. **Value:** the **role** ARN from B.2 step 7 — it must contain **`:role/`**
+   (e.g. `arn:aws:iam::050752632489:role/github-actions-deploy`). If it contains
+   `:oidc-provider/`, you copied the wrong ARN — go back to B.2 step 7.
 5. Choose **Add variable**.
 
 > If you store it as a *secret* instead, `vars.AWS_DEPLOY_ROLE_ARN` in the

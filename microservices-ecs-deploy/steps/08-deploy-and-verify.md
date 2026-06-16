@@ -80,8 +80,12 @@ In order of likelihood if the deploy fails:
    inside `task-definition.json`
 4. `AWS_DEPLOY_ROLE_ARN` was stored as a *secret* instead of a *variable*
    (`vars.AWS_DEPLOY_ROLE_ARN` resolves empty)
-5. `orders` can't reach `inventory` — check the security group allows port
-   `8080` from itself, and that `INVENTORY_URL` points at
+5. `AWS_DEPLOY_ROLE_ARN` holds the **provider** ARN (`:oidc-provider/...`)
+   instead of the **role** ARN (`:role/...`) — the deploy step logs
+   **"Assuming role with OIDC"** repeatedly then fails. Check the variable value
+   contains `:role/`; fix it per [Step 04](04-github-repo.md) B.2 step 7
+6. `orders` can't reach `inventory` — check `inventory-sg` allows port `8080`
+   from `orders-sg`, and that `INVENTORY_URL` points at
    `http://inventory.microsvc.local:8080`
 
 ---
