@@ -112,22 +112,39 @@ It's a one-time, account-wide registration.
 5. Choose **Next**. Set **Role name** to `github-actions-deploy`, then choose
    **Create role**.
 6. **Verify the trust policy.** Open the new role → **Trust relationships** tab →
-   **Edit trust policy**, and confirm the `Condition` block scopes **both** the
-   audience and the subject to your repo and branch — it should read like this
-   (substitute your username; the `aud`/`sub` claim keys use the provider's host
-   as a prefix):
+   **Edit trust policy**. The full document should look like this — substitute
+   your account ID and GitHub username:
    ```json
-   "Condition": {
-     "StringEquals": {
-       "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-     },
-     "StringLike": {
-       "token.actions.githubusercontent.com:sub": "repo:<your-username>/microservices-ecs-deploy:ref:refs/heads/main"
-     }
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+         },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+           },
+           "StringLike": {
+             "token.actions.githubusercontent.com:sub": "repo:<your-username>/microservices-ecs-deploy:ref:refs/heads/main"
+           }
+         }
+       }
+     ]
    }
    ```
-   If the `sub` line is missing or set to `repo:<your-org>/*`, edit it to the
-   value above and **Update policy**.
+   Confirm the `Principal.Federated` ARN points at the provider you created in
+   B.1, and that the `sub` value pins **your repo** *and* the `main` branch. If
+   it's missing or set to something broad like `repo:<your-org>/*`, fix it and
+   choose **Update policy**.
+
+   > The console sometimes lists the `sub` value **twice** inside an array (once
+   > for the org, once for the repo). That's harmless — it's an OR list, so a
+   > duplicate matches the same thing — but you can collapse it to the single
+   > string above to keep it clean.
 7. On the role's **Summary** page, copy the **ARN** (it looks like
    `arn:aws:iam::<ACCOUNT_ID>:role/github-actions-deploy`) — you need it in B.3.
 
