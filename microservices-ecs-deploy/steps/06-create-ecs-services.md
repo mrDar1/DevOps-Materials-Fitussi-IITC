@@ -10,46 +10,51 @@ Create **`inventory-service` first** (orders depends on it).
 
 ## A. `inventory-service` (internal — no load balancer)
 
+Work top to bottom through the wizard sections.
+
 1. **ECS → Clusters → `microsvc-cluster` → Services tab → Create**.
-2. **Compute configuration:** **Launch type** → **FARGATE**, **Platform version** **LATEST**.
-3. **Deployment configuration:**
-   - **Application type:** **Service**.
-   - **Task definition → Family:** `inventory-service`; **Revision:** `1 (LATEST)`.
+2. **Service details:**
+   - **Task definition family:** `inventory-service`.
+   - **Task definition revision:** `1 (LATEST)`.
    - **Service name:** `inventory-service`.
+3. **Environment → Compute configuration:** **Compute options** = **Launch type**, **Launch type** = **Fargate**, **Platform version** = **LATEST**.
+4. **Deployment configuration:**
+   - **Scheduling strategy:** **Replica**.
    - **Desired tasks:** `1`.
-4. **Networking:**
+   - Leave **Availability Zone rebalancing** and **Health check grace period** at defaults.
+5. **Networking** (expand):
    - **VPC:** default VPC.
    - **Subnets:** leave all default public subnets selected.
    - **Security group:** **Use an existing security group** → **`inventory-sg`** (no other group selected).
    - **Public IP:** **Turned on**.
-5. **Service Connect:** tick **Use Service Connect**.
+6. **Service Connect** (expand): tick **Use Service Connect**.
    - **Namespace:** `microsvc.local`.
    - **Mode:** **Client and server**.
    - **Port mapping:** tick the `inventory` port (container port **8080**), set **Port alias / DNS:** `inventory`, **Port:** `8080`.
-6. **Load balancing:** leave **None** → **Create**.
+7. **Load balancing:** leave it **off** (no load balancer).
+8. Leave the remaining optional sections at defaults → **Create**.
 
 ---
 
 ## B. `orders-service` (public — behind an Application Load Balancer)
 
 1. **Clusters → `microsvc-cluster` → Services tab → Create**.
-2. **Compute configuration:** **Launch type** → **FARGATE**, **Platform version** **LATEST**.
-3. **Deployment configuration:**
-   - **Application type:** **Service**.
-   - **Task definition → Family:** `orders-service`; **Revision:** `1 (LATEST)`.
+2. **Service details:**
+   - **Task definition family:** `orders-service`.
+   - **Task definition revision:** `1 (LATEST)`.
    - **Service name:** `orders-service`.
-   - **Desired tasks:** `1`.
-4. **Networking:** default VPC and subnets. **Security group:** **Use an existing security group** → **`orders-sg`**. **Public IP:** **Turned on**.
-5. **Load balancing:**
+3. **Environment → Compute configuration:** **Compute options** = **Launch type**, **Launch type** = **Fargate**, **Platform version** = **LATEST**.
+4. **Deployment configuration:** **Scheduling strategy:** **Replica**; **Desired tasks:** `1`. Leave AZ rebalancing and health check grace period at defaults.
+5. **Networking** (expand): default VPC and subnets. **Security group:** **Use an existing security group** → **`orders-sg`**. **Public IP:** **Turned on**.
+6. **Service Connect** (expand): tick **Use Service Connect**, **Namespace:** `microsvc.local`, **Mode:** **Client side only**.
+7. **Load balancing** (expand):
    - **Load balancer type:** **Application Load Balancer**.
    - **Create a new load balancer**.
    - **Load balancer name:** `orders-alb`.
    - **Security group:** select **`alb-sg`** if the wizard allows; otherwise verify it in Section C.
-   - **Health check grace period:** default.
    - **Listener:** **Create new listener** — **Port** `80`, **Protocol** **HTTP**.
    - **Target group:** **Create new target group** — **Name** `orders-tg`, **Protocol** **HTTP**, **Health check path** `/health`.
-6. **Service Connect:** tick **Use Service Connect**, **Namespace:** `microsvc.local`, **Mode:** **Client side only**.
-7. Click **Create**.
+8. Leave the remaining optional sections at defaults → **Create**.
 
 ---
 
