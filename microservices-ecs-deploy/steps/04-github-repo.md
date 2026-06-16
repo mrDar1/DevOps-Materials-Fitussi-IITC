@@ -53,65 +53,99 @@ The pipeline authenticates using **GitHub OIDC**: GitHub issues a short-lived
 identity token, AWS verifies it against a trust policy you define, and hands back
 temporary credentials. Nothing long-lived is ever stored in GitHub.
 
-You'll do this in three parts, all in the AWS Console.
+You'll do this in three parts, all in the **AWS Management Console**. Sign in,
+and confirm the **Region** selector (top-right) shows the region you'll use for
+the whole lab (e.g. `eu-west-1`) — IAM is global, but staying consistent avoids
+confusion in later steps.
 
 ### B.1 — Register GitHub as an OIDC identity provider
 
-In **IAM → Identity providers → Add provider**:
+This tells your AWS account to trust identity tokens issued by GitHub Actions.
+It's a one-time, account-wide registration.
 
-- [ ] Provider type: **OpenID Connect**
-- [ ] Provider URL: `https://token.actions.githubusercontent.com`
-- [ ] Click **Get thumbprint**
-- [ ] Audience: `sts.amazonaws.com`
-- [ ] **Add provider**
+1. Open the **IAM** console → in the left navigation, choose **Identity
+   providers**.
+2. Choose **Add provider**.
+3. Under **Provider type**, select **OpenID Connect**.
+4. In **Provider URL**, enter:
+   ```
+   https://token.actions.githubusercontent.com
+   ```
+   Then choose **Get thumbprint**. (AWS retrieves and trusts GitHub's CA
+   automatically; the button confirms the endpoint is reachable.)
+5. In **Audience**, enter:
+   ```
+   sts.amazonaws.com
+   ```
+6. Choose **Add provider**.
 
-> This is a one-time, account-wide registration that tells AWS to *trust tokens
-> signed by GitHub*. You still scope *which* repo can use it in the role below.
+> You now have a provider listed as `token.actions.githubusercontent.com`. This
+> only says "trust tokens GitHub signs" — it does **not** yet say *which* repo
+> may act. That scoping happens in the role's trust policy next.
 
-### B.2 — Create the deploy role with a scoped trust policy
+### B.2 — Create the deploy role for GitHub Actions
 
-In **IAM → Roles → Create role**:
+1. In the **IAM** console, choose **Roles** → **Create role**.
+2. For **Trusted entity type**, select **Web identity**.
+3. Under **Web identity**:
+   - **Identity provider:** choose `token.actions.githubusercontent.com`
+     (the one you created in B.1).
+   - **Audience:** choose `sts.amazonaws.com`.
+   - **GitHub organization:** enter your GitHub username or org
+     (e.g. `<your-username>`).
+   - **GitHub repository** *(optional field, but set it):* `microservices-ecs-deploy`
+   - **GitHub branch** *(optional field, but set it):* `main`
 
-- [ ] Trusted entity type: **Web identity**
-- [ ] Identity provider: the `token.actions.githubusercontent.com` you just added
-- [ ] Audience: `sts.amazonaws.com`
-- [ ] After creating, **edit the trust policy** so the `sub` condition matches
-      **your** repo and the `main` branch exactly:
-      `repo:<your-username>/microservices-ecs-deploy:ref:refs/heads/main`
+   > Filling in the org/repo/branch fields makes the console generate a trust
+   > policy already scoped to your repo and `main`. If you leave them blank, the
+   > policy trusts your **whole org** — you'd then have to tighten it by hand in
+   > step 6 below.
+4. Choose **Next** to go to the **Add permissions** screen. Search for and
+   select the check boxes next to both managed policies:
+   - **`AmazonEC2ContainerRegistryPowerUser`** — lets the pipeline push images to ECR
+   - **`AmazonECS_FullAccess`** — lets it register task definitions and update services
 
-The trust policy condition block should look like this (substitute your repo):
-
-```json
-"Condition": {
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-  },
-  "StringLike": {
-    "token.actions.githubusercontent.com:sub": "repo:<your-username>/microservices-ecs-deploy:ref:refs/heads/main"
-  }
-}
-```
-
-- [ ] Attach permissions the deploy needs. For this lab, the simplest path is the
-      AWS-managed policies **`AmazonEC2ContainerRegistryPowerUser`** (push to ECR)
-      and **`AmazonECS_FullAccess`** (register task defs + update services), plus
-      `iam:PassRole` for the ECS task/execution roles. In a real account you'd
-      tighten these; here, getting the deploy working comes first.
-- [ ] Name the role something like `github-actions-deploy` and create it.
-- [ ] Copy its **ARN** — you need it in B.3.
+   > These are intentionally broad so the lab's deploy "just works." In a real
+   > account you'd replace them with a least-privilege policy. The ECS-managed
+   > policy already allows the `iam:PassRole` the deploy needs to pass
+   > `ecsTaskExecutionRole`.
+5. Choose **Next**. Set **Role name** to `github-actions-deploy`, then choose
+   **Create role**.
+6. **Verify the trust policy.** Open the new role → **Trust relationships** tab →
+   **Edit trust policy**, and confirm the `Condition` block scopes **both** the
+   audience and the subject to your repo and branch — it should read like this
+   (substitute your username; the `aud`/`sub` claim keys use the provider's host
+   as a prefix):
+   ```json
+   "Condition": {
+     "StringEquals": {
+       "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+     },
+     "StringLike": {
+       "token.actions.githubusercontent.com:sub": "repo:<your-username>/microservices-ecs-deploy:ref:refs/heads/main"
+     }
+   }
+   ```
+   If the `sub` line is missing or set to `repo:<your-org>/*`, edit it to the
+   value above and **Update policy**.
+7. On the role's **Summary** page, copy the **ARN** (it looks like
+   `arn:aws:iam::<ACCOUNT_ID>:role/github-actions-deploy`) — you need it in B.3.
 
 > **Why scope the `sub`?** Without the `StringLike` on `sub`, *any* GitHub repo
-> in the world could assume your role. The condition pins it to your repo **and**
-> the `main` branch, so only your deploy workflow can authenticate.
+> that can reach AWS could assume your role. The condition pins it to your repo
+> **and** the `main` branch, so only your deploy workflow can authenticate.
 
-### B.3 — Store the role ARN as a repo variable
+### B.3 — Store the role ARN as a GitHub repo variable
 
 The role ARN is **not a secret** — it's just an identifier — so store it as a
-repo **variable**. In your GitHub repo: **Settings → Secrets and variables →
-Actions → Variables tab → New repository variable**:
+repo **variable**.
 
-- [ ] Name: `AWS_DEPLOY_ROLE_ARN`
-- [ ] Value: the role ARN you copied in B.2
+1. In your GitHub repository, go to **Settings** → in the left sidebar,
+   **Secrets and variables** → **Actions**.
+2. Select the **Variables** tab → **New repository variable**.
+3. **Name:** `AWS_DEPLOY_ROLE_ARN`
+4. **Value:** the role ARN you copied in B.2.
+5. Choose **Add variable**.
 
 > If you store it as a *secret* instead, `vars.AWS_DEPLOY_ROLE_ARN` in the
 > workflow resolves empty and the credentials step fails. Use a **variable**.
