@@ -43,6 +43,22 @@ match this JSON exactly.
 3. **Service or use case:** **Elastic Container Service** → select **Elastic Container Service Task** → **Next**.
 4. In **Permissions policies** search `AmazonECSTaskExecutionRolePolicy`, tick it → **Next**.
 5. **Role name:** `ecsTaskExecutionRole`. Leave description and trust policy as generated → **Create role**.
+6. **Add log-group create permission.** The managed policy lets the role write log
+   *streams* but **not create a log group**. The `awslogs` driver tries to create
+   the group on task start, so without this the task dies with
+   `AccessDeniedException ... logs:CreateLogGroup`. Open the new role → **Add
+   permissions** → **Create inline policy** → **JSON**, paste:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "logs:CreateLogGroup",
+       "Resource": "arn:aws:logs:*:*:log-group:/ecs/*"
+     }]
+   }
+   ```
+   Name it `allow-create-log-group` → **Create policy**.
 
 ---
 
@@ -117,26 +133,39 @@ Open **EC2 → Security Groups → Create security group**:
 
 1. **`alb-sg`** — **Description** `ALB inbound from internet`; VPC: default VPC.
    - **Inbound:** **Type** **HTTP**, **Port** `80`, **Source** **Anywhere-IPv4** (`0.0.0.0/0`), **Description** `HTTP from internet`.
-   - Leave outbound at default → **Create security group**.
+   - Leave outbound at default (**All traffic → `0.0.0.0/0`**) → **Create security group**.
 
 2. **`orders-sg`** — **Description** `orders task, ALB only`; VPC: default VPC.
-   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`alb-sg`** group, **Description** `8080 from alb-sg` → **Create security group**.
+   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`alb-sg`** group, **Description** `8080 from alb-sg`.
+   - **Outbound:** leave the default **All traffic → `0.0.0.0/0`** rule in place. → **Create security group**.
 
 3. **`inventory-sg`** — **Description** `inventory task, orders only`; VPC: default VPC.
-   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`orders-sg`** group, **Description** `8080 from orders-sg` → **Create security group**.
+   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`orders-sg`** group, **Description** `8080 from orders-sg`.
+   - **Outbound:** leave the default **All traffic → `0.0.0.0/0`** rule in place. → **Create security group**.
+
+> **Do not lock down outbound on the task SGs.** Fargate tasks pull their image
+> from **ECR over HTTPS (443)** and ship logs to **CloudWatch** — both over the
+> public internet (there's no NAT or VPC endpoint in this lab). If `orders-sg` /
+> `inventory-sg` outbound is restricted to only the peer `8080` rule, tasks can't
+> reach ECR and die with
+> `ResourceInitializationError: ... cannot pull registry auth from Amazon ECR ...
+> i/o timeout`, never starting — and the ALB target group stays empty. Keep the
+> default allow-all egress, **or** if your org template strips it, add at minimum
+> an **outbound HTTPS `443` to `0.0.0.0/0`** rule on both task SGs.
 
 ---
 
 ## Checklist
 
 - [ ] (A) `<ACCOUNT_ID>` and `<REGION>` filled into both `task-definition.json` files
-- [ ] (B) `ecsTaskExecutionRole` exists with `AmazonECSTaskExecutionRolePolicy`
+- [ ] (B) `ecsTaskExecutionRole` exists with `AmazonECSTaskExecutionRolePolicy` **and** the `allow-create-log-group` inline policy
 - [ ] (C) ECR repos `inventory-service` and `orders-service` exist (Private)
 - [ ] (D) Log groups `/ecs/inventory-service` and `/ecs/orders-service` exist
 - [ ] (E) Cluster `microsvc-cluster` exists on Fargate
 - [ ] (F) Cloud Map namespace `microsvc.local` exists in the default VPC
 - [ ] (G) A revision of each task definition is registered
 - [ ] (G2) Security groups exist: `alb-sg` (80 from `0.0.0.0/0`), `orders-sg` (8080 from `alb-sg`), `inventory-sg` (8080 from `orders-sg`)
+- [ ] (G2) `orders-sg` and `inventory-sg` keep **outbound HTTPS 443 to `0.0.0.0/0`** (or default allow-all egress) — needed to pull from ECR
 
 ## Next
 

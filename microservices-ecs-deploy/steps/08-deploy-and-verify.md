@@ -84,7 +84,17 @@ In order of likelihood if the deploy fails:
    instead of the **role** ARN (`:role/...`) — the deploy step logs
    **"Assuming role with OIDC"** repeatedly then fails. Check the variable value
    contains `:role/`; fix it per [Step 04](04-github-repo.md) B.2 step 7
-6. `orders` can't reach `inventory` — check `inventory-sg` allows port `8080`
+6. Tasks never start; service events show
+   `ResourceInitializationError: ... cannot pull registry auth from Amazon ECR ...
+   i/o timeout` — the task SG has **no outbound 443** (or no public IP). Fargate
+   pulls the image from ECR over the internet; add **outbound HTTPS 443 to
+   `0.0.0.0/0`** on `orders-sg` / `inventory-sg` (Step 05 G2) and confirm the
+   service has `assignPublicIp: ENABLED`.
+7. Tasks fail with
+   `AccessDeniedException ... not authorized to perform: logs:CreateLogGroup` —
+   `ecsTaskExecutionRole` is missing the `allow-create-log-group` inline policy
+   (Step 05 B step 6). The managed policy alone can't create a log group.
+8. `orders` can't reach `inventory` — check `inventory-sg` allows port `8080`
    from `orders-sg`, and that `INVENTORY_URL` points at
    `http://inventory.microsvc.local:8080`
 
