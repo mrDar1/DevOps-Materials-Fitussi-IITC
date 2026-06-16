@@ -1,4 +1,4 @@
-# Step 06 — Deploy & verify end-to-end
+# Step 07 — Deploy & verify end-to-end
 
 **Goal:** trigger the pipeline, confirm both services actually deployed, and
 prove the cross-service dependency through the real ALB — not just a green

@@ -1,4 +1,4 @@
-# Step 05 — Write the deploy pipeline
+# Step 06 — Write the deploy pipeline
 
 **Goal:** author `.github/workflows/deploy.yml` **yourself** that builds, pushes,
 and deploys **both** services to ECS on every push to `main` — authenticating
@@ -57,8 +57,9 @@ Pin all actions to a major version tag (e.g. `@v4`), not `@main` or a full SHA.
 
 ## C. Verify the file before pushing
 
-- [ ] `env.AWS_REGION` and `env.ECS_CLUSTER` match the values your instructor
-      used (see [Step 04](04-github-repo.md))
+- [ ] `env.AWS_REGION` and `env.ECS_CLUSTER` match the region and cluster name
+      you provisioned in [Step 05](05-provision-aws-infra.md) (e.g. `eu-west-1`
+      and `microsvc-cluster`)
 - [ ] `container-name` in each render maps to the correct container
 - [ ] There is no `aws-access-key-id` anywhere in the file
 - [ ] Every action is pinned to a major version tag
@@ -73,4 +74,4 @@ Pin all actions to a major version tag (e.g. `@v4`), not `@main` or a full SHA.
 
 ## Next
 
-→ [Step 06 — Deploy & verify end-to-end](06-deploy-and-verify.md)
+→ [Step 07 — Deploy & verify end-to-end](07-deploy-and-verify.md)

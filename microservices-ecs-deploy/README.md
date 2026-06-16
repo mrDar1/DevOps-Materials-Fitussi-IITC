@@ -79,7 +79,12 @@ The instructive parts are left to you:
 
 - A `Dockerfile` for each service → [Step 02](steps/02-containerize.md)
 - `docker-compose.yml` to run both together → [Step 03](steps/03-compose-local.md)
-- `.github/workflows/deploy.yml`, the OIDC deploy pipeline → [Step 05](steps/05-write-the-pipeline.md)
+- `.github/workflows/deploy.yml`, the OIDC deploy pipeline → [Step 06](steps/06-write-the-pipeline.md)
+
+And you provision **all** the AWS infrastructure yourself from the console —
+OIDC trust, ECR, the ECS cluster, Service Connect, and the load balancer
+([Step 04](steps/04-github-repo.md) and [Step 05](steps/05-provision-aws-infra.md)).
+Nothing is pre-provisioned for you.
 
 ---
 
@@ -93,9 +98,10 @@ passes.
 | 1 | [Local development setup](steps/01-local-dev-setup.md) | Create a virtualenv per service, install deps, run the tests |
 | 2 | [Containerize each service](steps/02-containerize.md) | Write a `Dockerfile` for inventory and orders |
 | 3 | [Run both locally with Compose](steps/03-compose-local.md) | Write `docker-compose.yml`, prove the cross-service call |
-| 4 | [Prepare the GitHub repo](steps/04-github-repo.md) | Standalone repo, OIDC config, repo variable |
-| 5 | [Write the deploy pipeline](steps/05-write-the-pipeline.md) | Author `.github/workflows/deploy.yml` (the core exercise) |
-| 6 | [Deploy & verify end-to-end](steps/06-deploy-and-verify.md) | Push, watch the run, hit the ALB, prove the dependency |
+| 4 | [Prepare the GitHub repo](steps/04-github-repo.md) | Publish the repo from VS Code; build the OIDC provider + deploy role yourself |
+| 5 | [Provision the AWS infrastructure](steps/05-provision-aws-infra.md) | Create ECR, the ECS cluster, Service Connect, ALB, and both services from scratch |
+| 6 | [Write the deploy pipeline](steps/06-write-the-pipeline.md) | Author `.github/workflows/deploy.yml` (the core exercise) |
+| 7 | [Deploy & verify end-to-end](steps/07-deploy-and-verify.md) | Push, watch the run, hit the ALB, prove the dependency |
 
 ---
 
@@ -122,8 +128,9 @@ passes.
 - [ ] A virtualenv exists per service and both test suites pass ([Step 1](steps/01-local-dev-setup.md))
 - [ ] You wrote a `Dockerfile` for each service ([Step 2](steps/02-containerize.md))
 - [ ] `docker compose up` proves the cross-service call works locally ([Step 3](steps/03-compose-local.md))
-- [ ] No AWS access keys exist as GitHub secrets — OIDC only ([Step 4](steps/04-github-repo.md))
-- [ ] You wrote `.github/workflows/deploy.yml` from scratch ([Step 5](steps/05-write-the-pipeline.md))
-- [ ] A push to `main` runs your workflow; both matrix jobs go green independently ([Step 6](steps/06-deploy-and-verify.md))
+- [ ] You built the OIDC provider + deploy role yourself; no AWS access keys as secrets ([Step 4](steps/04-github-repo.md))
+- [ ] You provisioned ECR, the cluster, Service Connect, the ALB, and both services ([Step 5](steps/05-provision-aws-infra.md))
+- [ ] You wrote `.github/workflows/deploy.yml` from scratch ([Step 6](steps/06-write-the-pipeline.md))
+- [ ] A push to `main` runs your workflow; both matrix jobs go green independently ([Step 7](steps/07-deploy-and-verify.md))
 - [ ] `aws ecs describe-services` shows both services with `running == desired`
 - [ ] The ALB returns `confirmed` / `backordered` correctly through the real deployment
