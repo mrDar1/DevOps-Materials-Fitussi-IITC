@@ -1,0 +1,33 @@
+{
+  "family": "orders-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "orders",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/orders-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "name": "orders",
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "INVENTORY_URL", "value": "http://inventory.microsvc.local:8080" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/orders-service",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
