@@ -105,7 +105,7 @@ docker compose down
 ```
 
 This is the exact failure mode you'll reproduce in production in
-[Step 07](07-deploy-and-verify.md). If it does **not** return `503`, your
+[Step 08](08-deploy-and-verify.md). If it does **not** return `503`, your
 `orders` app is swallowing the connection error instead of surfacing it.
 
 ---

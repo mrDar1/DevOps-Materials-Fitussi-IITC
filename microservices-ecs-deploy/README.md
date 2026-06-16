@@ -79,7 +79,7 @@ The instructive parts are left to you:
 
 - A `Dockerfile` for each service → [Step 02](steps/02-containerize.md)
 - `docker-compose.yml` to run both together → [Step 03](steps/03-compose-local.md)
-- `.github/workflows/deploy.yml`, the OIDC deploy pipeline → [Step 06](steps/06-write-the-pipeline.md)
+- `.github/workflows/deploy.yml`, the OIDC deploy pipeline → [Step 07](steps/07-write-the-pipeline.md)
 
 And you provision **all** the AWS infrastructure yourself from the console —
 OIDC trust, ECR, the ECS cluster, Service Connect, and the load balancer
@@ -99,9 +99,10 @@ passes.
 | 2 | [Containerize each service](steps/02-containerize.md) | Write a `Dockerfile` for inventory and orders |
 | 3 | [Run both locally with Compose](steps/03-compose-local.md) | Write `docker-compose.yml`, prove the cross-service call |
 | 4 | [Prepare the GitHub repo](steps/04-github-repo.md) | Publish the repo from VS Code; build the OIDC provider + deploy role yourself |
-| 5 | [Provision the AWS infrastructure](steps/05-provision-aws-infra.md) | Create ECR, the ECS cluster, Service Connect, ALB, and both services from scratch |
-| 6 | [Write the deploy pipeline](steps/06-write-the-pipeline.md) | Author `.github/workflows/deploy.yml` (the core exercise) |
-| 7 | [Deploy & verify end-to-end](steps/07-deploy-and-verify.md) | Push, watch the run, hit the ALB, prove the dependency |
+| 5 | [Provision the AWS infrastructure](steps/05-provision-aws-infra.md) | Create the execution role, ECR, log groups, the cluster, Service Connect, task definitions, and security groups |
+| 6 | [Create the ECS services](steps/06-create-ecs-services.md) | Create both services and the ALB; wire up Service Connect and the security groups |
+| 7 | [Write the deploy pipeline](steps/07-write-the-pipeline.md) | Author `.github/workflows/deploy.yml` (the core exercise) |
+| 8 | [Deploy & verify end-to-end](steps/08-deploy-and-verify.md) | Push, watch the run, hit the ALB, prove the dependency |
 
 ---
 
@@ -129,8 +130,9 @@ passes.
 - [ ] You wrote a `Dockerfile` for each service ([Step 2](steps/02-containerize.md))
 - [ ] `docker compose up` proves the cross-service call works locally ([Step 3](steps/03-compose-local.md))
 - [ ] You built the OIDC provider + deploy role yourself; no AWS access keys as secrets ([Step 4](steps/04-github-repo.md))
-- [ ] You provisioned ECR, the cluster, Service Connect, the ALB, and both services ([Step 5](steps/05-provision-aws-infra.md))
-- [ ] You wrote `.github/workflows/deploy.yml` from scratch ([Step 6](steps/06-write-the-pipeline.md))
-- [ ] A push to `main` runs your workflow; both matrix jobs go green independently ([Step 7](steps/07-deploy-and-verify.md))
+- [ ] You provisioned the execution role, ECR, log groups, the cluster, Service Connect, task definitions, and security groups ([Step 5](steps/05-provision-aws-infra.md))
+- [ ] You created both ECS services and the ALB ([Step 6](steps/06-create-ecs-services.md))
+- [ ] You wrote `.github/workflows/deploy.yml` from scratch ([Step 7](steps/07-write-the-pipeline.md))
+- [ ] A push to `main` runs your workflow; both matrix jobs go green independently ([Step 8](steps/08-deploy-and-verify.md))
 - [ ] `aws ecs describe-services` shows both services with `running == desired`
 - [ ] The ALB returns `confirmed` / `backordered` correctly through the real deployment

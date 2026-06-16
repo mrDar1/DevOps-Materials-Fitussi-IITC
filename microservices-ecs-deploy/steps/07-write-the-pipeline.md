@@ -1,4 +1,4 @@
-# Step 06 — Write the deploy pipeline
+# Step 07 — Write the deploy pipeline
 
 **Goal:** author `.github/workflows/deploy.yml` **yourself** that builds, pushes,
 and deploys **both** services to ECS on every push to `main` — authenticating
@@ -74,4 +74,4 @@ Pin all actions to a major version tag (e.g. `@v4`), not `@main` or a full SHA.
 
 ## Next
 
-→ [Step 07 — Deploy & verify end-to-end](07-deploy-and-verify.md)
+→ [Step 08 — Deploy & verify end-to-end](08-deploy-and-verify.md)
