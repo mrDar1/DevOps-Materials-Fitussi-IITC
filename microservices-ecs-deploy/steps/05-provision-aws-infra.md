@@ -79,13 +79,41 @@ name.
 
 ## C. Create the two ECR repositories
 
-The pipeline pushes one container image per service into ECR.
+The pipeline pushes one container image per service into ECR. You'll create two
+**private** repositories: `inventory-service` and `orders-service`.
 
-1. Open the **Amazon ECR** console → **Repositories** → **Create repository**.
-2. **Visibility settings:** **Private**.
-3. **Repository name:** `inventory-service`.
-4. Leave the other defaults → **Create repository**.
-5. Repeat steps 1–4 for a second repository named `orders-service`.
+> **Region check — do this first.** Look at the URI prefix shown next to the
+> repository-name field (e.g. `…dkr.ecr.eu-central-1.amazonaws.com/`). That region
+> is whatever the console's region selector (top-right) is set to. It **must match
+> the `<REGION>` you used in your task-definition JSON** (Section A) and the region
+> you'll use everywhere else. If the prefix shows a different region than you
+> intend, fix the region selector *before* creating the repo — you can't move a
+> repository between regions later.
+
+1. Open the **Amazon ECR** console. In the left sidebar under **Private registry**,
+   choose **Repositories**. (If you land on a "Get started" splash, click
+   **Get started** to reach the repositories list.)
+2. Click **Create repository** in the top-right.
+3. On the **Create repository** page:
+   - **Repository name:** type `inventory-service` in the name field. The
+     non-editable URI prefix to its left
+     (`<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/`) is filled in automatically —
+     check it shows your account ID and region (see the region note above).
+   - **Image tag settings → Image tag mutability:** leave on the default
+     **Mutable** (the pipeline re-pushes tags, so tags must be overwritable). Leave
+     **Mutable tag exclusions** empty.
+   - **Encryption settings → Encryption configuration:** leave on the default
+     **AES-256**. (No need for AWS KMS in this lab.)
+   - Leave any remaining sections (e.g. the deprecated image-scanning settings) at
+     their defaults.
+4. Click **Create repository** (bottom-right). You're returned to the repositories
+   list with `inventory-service` now listed.
+5. Click **Create repository** again and repeat step 3 with the name
+   `orders-service`.
+
+When done, the **Private** repositories list shows both `inventory-service` and
+`orders-service`, each with a URI of the form
+`<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<name>`.
 
 > The full image URI is
 > `<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<repo>:<tag>`. The repo name you
