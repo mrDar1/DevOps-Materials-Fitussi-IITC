@@ -121,37 +121,53 @@ You should now have two families — `inventory-service` and `orders-service` �
 
 ---
 
-## G2. Create the security groups
+## G2. Create the two security groups
 
-Create all three in the **default VPC**, **in this order** — each rule's source group must already exist:
+You need **two** security groups. The ECS new-service wizard attaches the
+service's own security group to the load balancer it creates, so the ALB and the
+orders task end up sharing **`orders-sg`** — there is no separate `alb-sg`. Model
+it that way from the start:
 
 ```
-internet ──80──► alb-sg ──80──► orders-sg ──8080──► inventory-sg
+internet ──80──► orders-sg (ALB + orders task) ──8080──► inventory-sg
+                       └──8080── self (ALB → orders task)
 ```
 
-Open **EC2 → Security Groups → Create security group**:
+> **Leave OUTBOUND at the default `All traffic → 0.0.0.0/0` on both groups.**
+> This is the single most important rule in this step. Fargate tasks use
+> **outbound** to (a) pull the image from **ECR/443**, (b) ship logs to
+> **CloudWatch**, (c) let the **ALB health-check** the task, and (d) let orders
+> reach inventory. If you restrict egress, you get one of these silent failures:
+> - egress missing 443 → `ResourceInitializationError: cannot pull registry auth from Amazon ECR ... i/o timeout` (task never starts)
+> - egress missing 8080 to self → ALB target stuck **`Target.Timeout`**, ALB returns 504, ECS kills/replaces the task in a loop
+> - egress missing 8080 to `inventory-sg` → `/orders` returns `{"error":"inventory service unavailable"}`
+>
+> Keep egress wide open (default). Lock down **inbound** only.
 
-1. **`alb-sg`** — **Description** `ALB inbound from internet`; VPC: default VPC.
-   - **Inbound:** **Type** **HTTP**, **Port** `80`, **Source** **Anywhere-IPv4** (`0.0.0.0/0`), **Description** `HTTP from internet`.
-   - Leave outbound at default (**All traffic → `0.0.0.0/0`**) → **Create security group**.
+Open **EC2 → Security Groups → Create security group**, create them **in this
+order** (the second references the first):
 
-2. **`orders-sg`** — **Description** `orders task, ALB only`; VPC: default VPC.
-   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`alb-sg`** group, **Description** `8080 from alb-sg`.
-   - **Outbound:** leave the default **All traffic → `0.0.0.0/0`** rule in place. → **Create security group**.
+1. **`orders-sg`** — holds the ALB *and* the orders task. **Description**
+   `ALB + orders task`; **VPC:** default VPC.
+   - **Inbound rule 1:** **Type** **HTTP**, **Port** `80`, **Source**
+     **Anywhere-IPv4** (`0.0.0.0/0`), **Description** `HTTP from internet to ALB`.
+   - **Inbound rule 2:** **Type** **Custom TCP**, **Port** `8080`, **Source**
+     **this same security group** (after you save once you can reference it; or
+     pick it from the dropdown as you type `orders-sg`), **Description**
+     `ALB to orders task`.
+   - **Outbound:** leave default **All traffic → `0.0.0.0/0`**.
+   - → **Create security group**.
 
-3. **`inventory-sg`** — **Description** `inventory task, orders only`; VPC: default VPC.
-   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the **`orders-sg`** group, **Description** `8080 from orders-sg`.
-   - **Outbound:** leave the default **All traffic → `0.0.0.0/0`** rule in place. → **Create security group**.
+   > Port `80` is the public ALB listener; port `8080` self-reference is the ALB
+   > forwarding to the orders container. Both live on this one group because the
+   > wizard puts the ALB here.
 
-> **Do not lock down outbound on the task SGs.** Fargate tasks pull their image
-> from **ECR over HTTPS (443)** and ship logs to **CloudWatch** — both over the
-> public internet (there's no NAT or VPC endpoint in this lab). If `orders-sg` /
-> `inventory-sg` outbound is restricted to only the peer `8080` rule, tasks can't
-> reach ECR and die with
-> `ResourceInitializationError: ... cannot pull registry auth from Amazon ECR ...
-> i/o timeout`, never starting — and the ALB target group stays empty. Keep the
-> default allow-all egress, **or** if your org template strips it, add at minimum
-> an **outbound HTTPS `443` to `0.0.0.0/0`** rule on both task SGs.
+2. **`inventory-sg`** — the inventory task only. **Description**
+   `inventory task, orders only`; **VPC:** default VPC.
+   - **Inbound:** **Type** **Custom TCP**, **Port** `8080`, **Source** the
+     **`orders-sg`** group, **Description** `8080 from orders-sg`.
+   - **Outbound:** leave default **All traffic → `0.0.0.0/0`**.
+   - → **Create security group**.
 
 ---
 
@@ -164,8 +180,9 @@ Open **EC2 → Security Groups → Create security group**:
 - [ ] (E) Cluster `microsvc-cluster` exists on Fargate
 - [ ] (F) Cloud Map namespace `microsvc.local` exists in the default VPC
 - [ ] (G) A revision of each task definition is registered
-- [ ] (G2) Security groups exist: `alb-sg` (80 from `0.0.0.0/0`), `orders-sg` (8080 from `alb-sg`), `inventory-sg` (8080 from `orders-sg`)
-- [ ] (G2) `orders-sg` and `inventory-sg` keep **outbound HTTPS 443 to `0.0.0.0/0`** (or default allow-all egress) — needed to pull from ECR
+- [ ] (G2) `orders-sg` exists: inbound **80 from `0.0.0.0/0`** + **8080 from `orders-sg` (self)**
+- [ ] (G2) `inventory-sg` exists: inbound **8080 from `orders-sg`**
+- [ ] (G2) Both SGs keep **default allow-all outbound** (`All traffic → 0.0.0.0/0`) — egress carries ECR pull, ALB health check, and orders→inventory
 
 ## Next
 

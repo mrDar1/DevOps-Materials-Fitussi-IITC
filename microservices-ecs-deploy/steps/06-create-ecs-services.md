@@ -56,6 +56,10 @@ Work top to bottom through the wizard sections.
 3. **Environment → Compute configuration:** **Compute options** = **Launch type**, **Launch type** = **Fargate**, **Platform version** = **LATEST**.
 4. **Deployment configuration:** **Scheduling strategy:** **Replica**; **Desired tasks:** `1`. Leave AZ rebalancing and health check grace period at defaults.
 5. **Networking** (expand): default VPC and subnets. **Security group:** **Use an existing security group** → **`orders-sg`**. **Public IP:** **Turned on**.
+   > The wizard attaches **this same `orders-sg`** to the ALB it creates below — so
+   > `orders-sg` ends up on both the ALB and the orders task. That's why `orders-sg`
+   > has both the `80`-from-internet and the `8080`-from-self inbound rules
+   > (Step 05 G2).
 6. **Service Connect** (expand): tick **Use Service Connect**. **Service Connect configuration:** **Client side only**. **Namespace:** select `microsvc.local`. (Client-side mode has no Port alias / DNS card — orders only *calls* inventory, it isn't discovered by name.)
 7. **Load balancing** (expand): tick **Use load balancing**.
    - **VPC:** leave the prefilled value (it matches the service VPC).
@@ -71,7 +75,7 @@ Work top to bottom through the wizard sections.
      - **Deregistration delay:** leave default (`300`).
      - **Health check protocol:** **HTTP**.
      - **Health check path:** `/health` (default is `/` — change it).
-   - This wizard does **not** let you set the ALB's security group; ECS creates one. You'll point the ALB at `alb-sg` (or confirm its rule) in Section C.
+   - The wizard attaches **`orders-sg`** (your service SG from step 5) to this ALB — no separate ALB security group. That's why `orders-sg` carries the `80`-from-internet rule.
 8. Leave the remaining optional sections at defaults → **Create**.
 
 > **The services won't run yet — that's expected.** The ECR repos are still
@@ -83,13 +87,13 @@ Work top to bottom through the wizard sections.
 
 ---
 
-## C. Configure the ALB security group
+## C. Verify the wiring and note the ALB DNS
 
-The orders service wizard auto-created a security group for the ALB but gave you
-no chance to set it. Fix that now (this is config, not runtime — it doesn't depend
-on a running task):
+This is config, not runtime — do it now even though the tasks aren't running:
 
-- **EC2 → Load Balancers → `orders-alb` → Security → Edit security groups:** either attach **`alb-sg`** (and remove the auto-created one), or open the auto-created group and confirm it allows **inbound HTTP port 80 from `0.0.0.0/0`**.
+- **EC2 → Load Balancers → `orders-alb` → Security:** confirm the attached group is **`orders-sg`** (the wizard should have attached it). If a different group is attached, **Edit security groups** and set it to `orders-sg`.
+- **EC2 → Security Groups → `orders-sg` → Inbound:** confirm both rules are present — **80 from `0.0.0.0/0`** and **8080 from `orders-sg` (self)**. The self-8080 rule is what lets the ALB health-check and forward to the orders task; without it the target group stays `Target.Timeout` and ECS loops replacing the task.
+- **`orders-sg` → Outbound:** confirm it's still the default **All traffic → `0.0.0.0/0`**. Restricted egress breaks the ALB health check *and* the orders→inventory call.
 - **EC2 → Load Balancers → `orders-alb` → DNS name:** copy it (e.g. `orders-alb-123456.eu-west-1.elb.amazonaws.com`) — you'll curl it in [Step 08](08-deploy-and-verify.md).
 
 ---
@@ -98,7 +102,7 @@ on a running task):
 
 - [ ] (A) `inventory-service` created with Service Connect (Client and server), no ALB, using `inventory-sg`
 - [ ] (B) `orders-service` created behind an ALB, using `orders-sg`
-- [ ] (C) ALB security group allows HTTP 80 from `0.0.0.0/0`
+- [ ] (C) `orders-sg` is attached to `orders-alb`, with inbound 80 from internet + 8080 from self, and default allow-all egress
 - [ ] (C) ALB DNS name noted for Step 08
 - [ ] Both services exist in the cluster (running count **0** until Step 07/08 — expected)
 
