@@ -19,151 +19,230 @@ definitions.
 
 ---
 
-## A. The task-definition placeholders
+You'll build the resources in the order below. Each one is needed by the next,
+so **don't skip ahead** — register the task definitions before you create the
+services, create the namespace before you enable Service Connect, and so on.
 
-Open both `inventory-service/task-definition.json` and
-`orders-service/task-definition.json`. They contain placeholders you must fill
-in with **your** account's values:
+Resources you'll create, and how they connect:
 
-- [ ] `<ACCOUNT_ID>` → your 12-digit AWS account ID
-- [ ] `<REGION>` → your region (e.g. `eu-west-1`)
-
-These appear in the `executionRoleArn`, the container `image` URI, and the
-`awslogs-region`. Keep the file's container `name` (`inventory` / `orders`)
-unchanged — the pipeline's render step matches on it.
-
-> You'll keep coming back to these two files as you create resources below; the
-> names you choose in AWS must line up with what's written here.
+```
+ecsTaskExecutionRole ─┐
+ECR repos ────────────┤
+CloudWatch log groups ┤──► task definitions ──► ECS services ──► ALB (orders only)
+Cloud Map namespace ──┘                                   └──► Service Connect
+```
 
 ---
 
-## B. The task execution role
+## A. Fill in the task-definition placeholders
 
-ECS needs an **execution role** to pull images from ECR and write logs to
-CloudWatch. The task definitions reference `ecsTaskExecutionRole`.
+Before touching the console, edit the two task-definition files so they point at
+**your** account. Open `inventory-service/task-definition.json` and
+`orders-service/task-definition.json` and replace:
 
-In **IAM → Roles → Create role**:
+- [ ] `<ACCOUNT_ID>` → your 12-digit AWS account ID (the digits in your deploy
+      role ARN from [Step 04](04-github-repo.md), e.g. `050752632489`)
+- [ ] `<REGION>` → your region, e.g. `eu-west-1`
 
-- [ ] Trusted entity: **AWS service** → **Elastic Container Service** →
-      **Elastic Container Service Task**
-- [ ] Attach the managed policy **`AmazonECSTaskExecutionRolePolicy`**
-- [ ] Name it exactly `ecsTaskExecutionRole`
+These placeholders appear in three places per file: `executionRoleArn`, the
+container `image` URI, and `awslogs-region`. **Leave everything else as-is** — in
+particular the container `name` (`inventory` / `orders`) and `family`, which the
+pipeline matches on later.
 
-> This is **different** from the GitHub deploy role in [Step 04](04-github-repo.md):
-> the deploy role is assumed by GitHub Actions to *run the deploy*; the execution
-> role is assumed by ECS at runtime to *pull the image and ship logs*.
+> Keep these files open. The names you choose in the console below — the ECR repo
+> name, the log-group name, the execution-role name — must match exactly what's
+> written in this JSON, or the first deploy fails.
+
+---
+
+## B. Create the task execution role
+
+ECS itself needs an **execution role** to pull your image from ECR and write
+container logs to CloudWatch. Your task definitions already reference it by name
+(`ecsTaskExecutionRole` in `executionRoleArn`), so create it with that exact
+name.
+
+1. Open the **IAM** console → **Roles** → **Create role**.
+2. **Trusted entity type:** select **AWS service**.
+3. Under **Use case**, choose **Elastic Container Service**, then select
+   **Elastic Container Service Task** from the list → **Next**.
+4. On **Add permissions**, search for and tick **`AmazonECSTaskExecutionRolePolicy`**
+   → **Next**.
+5. **Role name:** enter exactly `ecsTaskExecutionRole` → **Create role**.
+
+> **Not the same role as Step 04.** The Step 04 `github-actions-deploy` role is
+> assumed by *GitHub Actions* to run the deploy. This `ecsTaskExecutionRole` is
+> assumed by *ECS at runtime* to pull the image and ship logs. Two different
+> actors, two different roles.
 
 ---
 
 ## C. Create the two ECR repositories
 
-The pipeline pushes one image per service. In **ECR → Repositories → Create
-repository**, create **two private repos**, named to match the workflow:
+The pipeline pushes one container image per service into ECR.
 
-- [ ] `inventory-service`
-- [ ] `orders-service`
+1. Open the **Amazon ECR** console → **Repositories** → **Create repository**.
+2. **Visibility settings:** **Private**.
+3. **Repository name:** `inventory-service`.
+4. Leave the other defaults → **Create repository**.
+5. Repeat steps 1–4 for a second repository named `orders-service`.
 
-> The image URIs in the task definitions and the workflow are
-> `<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<repo>:<tag>`. The repo name here
-> must match the `<repo>` segment exactly.
+> The full image URI is
+> `<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<repo>:<tag>`. The repo name you
+> type here is the `<repo>` segment and must match the `image` line in the
+> task-definition JSON exactly.
 
 ---
 
-## D. Create the CloudWatch log groups
+## D. Create the two CloudWatch log groups
 
-Each task definition logs to a named group. CloudWatch can auto-create them, but
-create them explicitly so the first deploy doesn't fail on a missing group. In
-**CloudWatch → Log groups → Create log group**:
+Each task definition writes logs to a named group (`awslogs-group`). ECS can
+auto-create them, but creating them up front avoids a first-deploy failure if the
+execution role can't create the group.
 
-- [ ] `/ecs/inventory-service`
-- [ ] `/ecs/orders-service`
+1. Open the **CloudWatch** console → **Log groups** → **Create log group**.
+2. **Log group name:** `/ecs/inventory-service` → **Create**.
+3. Repeat for `/ecs/orders-service`.
 
 ---
 
 ## E. Create the ECS cluster
 
-In **ECS → Clusters → Create cluster**:
+1. Open the **Amazon ECS** console → **Clusters** → **Create cluster**.
+2. **Cluster name:** `microsvc-cluster`.
+   > This must equal the `ECS_CLUSTER` value in your workflow in Step 06 — keep
+   > them identical.
+3. Under **Infrastructure**, ensure **AWS Fargate (serverless)** is selected
+   (it's on by default).
+4. Leave the default VPC and subnets selected (the default VPC, with its subnets
+   across availability zones, is fine for this lab) → **Create**.
 
-- [ ] Name it `microsvc-cluster` (this is the `ECS_CLUSTER` value the workflow
-      uses — keep them identical)
-- [ ] Infrastructure: **AWS Fargate (serverless)**
-- [ ] Create it in a VPC with at least two subnets (the default VPC is fine)
-
----
-
-## F. Register the first task definition revisions
-
-The pipeline updates **existing** services with new task-def revisions, so the
-services (and therefore an initial task definition) must already exist. Register
-revision 1 of each from your filled-in JSON. In **ECS → Task definitions →
-Create new task definition → JSON**:
-
-- [ ] Paste the contents of `inventory-service/task-definition.json` (with your
-      `<ACCOUNT_ID>`/`<REGION>` filled in) and create it
-- [ ] Do the same for `orders-service/task-definition.json`
-
-> The `image` tag can stay `latest` for this first registration — the pipeline
-> overwrites it with a commit-SHA tag on every deploy.
+> Note which **VPC** the cluster uses — you'll attach the Cloud Map namespace
+> (Section G) to the *same* VPC, and the ALB (Section H) lives there too.
 
 ---
 
-## G. Set up Service Connect (private service discovery)
+## F. Create the Cloud Map namespace for service discovery
 
-`orders` finds `inventory` by the DNS name `inventory.microsvc.local:8080`. That
-name comes from **ECS Service Connect**, backed by a **Cloud Map** namespace.
+`orders` will reach `inventory` at the DNS name `inventory.microsvc.local`. That
+hostname is served by **AWS Cloud Map**; ECS Service Connect (Section H) plugs
+into it. Create the namespace first so it's selectable when you create the
+services.
 
-- [ ] In **AWS Cloud Map → Create namespace**, create an
-      **API calls and DNS queries in VPCs** namespace named `microsvc.local`,
-      attached to your cluster's VPC.
+1. Open the **AWS Cloud Map** console → **Create namespace**.
+2. **Namespace name:** `microsvc.local`.
+3. **Instance discovery:** select **API calls and DNS queries in VPCs**.
+4. **VPC:** choose the **same VPC** your cluster uses (from Section E).
+5. **Create namespace.**
 
-You'll enable Service Connect on each service in the next step and point it at
-this namespace.
+> `microsvc.local` is the DNS suffix; the `inventory` part of
+> `inventory.microsvc.local` comes from the Service Connect *discovery name* you
+> set on the inventory service in Section H.
+
+---
+
+## G. Register the first task-definition revisions
+
+The pipeline **updates existing** ECS services — it doesn't create them — so the
+services must exist before the first deploy, and a service can't be created
+without a task definition. Register revision 1 of each now, from your edited
+JSON.
+
+1. Open the **Amazon ECS** console → **Task definitions** → **Create new task
+   definition** → **Create new task definition with JSON**.
+2. Delete the sample JSON, paste the full contents of
+   `inventory-service/task-definition.json` (with your `<ACCOUNT_ID>`/`<REGION>`
+   filled in from Section A) → **Create**.
+3. Repeat for `orders-service/task-definition.json`.
+
+After this you should see two task-definition families — `inventory-service` and
+`orders-service` — each at revision `1`.
+
+> The `image` tag can stay `:latest` for this first registration. The pipeline
+> overwrites it with a commit-SHA tag on every deploy, then ECS rolls the service
+> to the new revision.
 
 ---
 
 ## H. Create the two ECS services
 
-This is where it all comes together. In **ECS → Clusters → `microsvc-cluster` →
-Services → Create**, create **two** services.
+This is where the cluster, task definitions, namespace, and networking come
+together. You create **two** services in `microsvc-cluster`. Create
+**`inventory-service` first** (orders depends on it).
 
-**`inventory-service` (internal, no load balancer):**
+### H.1 — `inventory-service` (internal — no load balancer)
 
-- [ ] Launch type: **Fargate**
-- [ ] Task definition: `inventory-service` (the revision from Section F)
-- [ ] Service name: `inventory-service`
-- [ ] Desired tasks: `1`
-- [ ] **Service Connect:** enable it, namespace `microsvc.local`. Configure the
-      `inventory` port mapping as a **client and server** with the discovery name
-      `inventory` on port `8080` → this is what makes `inventory.microsvc.local:8080` resolve.
-- [ ] **No** load balancer — it's reached only by `orders`.
-- [ ] Networking: place it in the cluster's subnets; security group must allow
-      inbound TCP `8080` **from the orders/service security group** (so orders
-      can call it).
+1. In the **ECS** console open **Clusters → `microsvc-cluster`**, and on the
+   **Services** tab choose **Create**.
+2. **Compute / launch type:** **Launch type**, **FARGATE**.
+3. **Deployment configuration:**
+   - **Family:** `inventory-service`, **Revision:** `1` (latest).
+   - **Service name:** `inventory-service`.
+   - **Desired tasks:** `1`.
+4. **Networking:** choose your cluster's VPC and its subnets. For the **security
+   group**, create a new one (call it `inventory-sg`) — you'll adjust its inbound
+   rule in step 6. **Public IP:** can be **on** for the default VPC's public
+   subnets so the image can be pulled (or use private subnets with a NAT —
+   public is simplest for the lab).
+5. **Service Connect:** expand it and choose **Turn on Service Connect**.
+   - **Namespace:** `microsvc.local`.
+   - For the port mapping named `inventory` (it comes from the task definition),
+     set the role to **Client and server** and the **Discovery name** /
+     **Service Connect alias** to `inventory` on **port 8080**.
+   - This is exactly what makes `http://inventory.microsvc.local:8080` resolve.
+6. **No load balancer** — leave load balancing off; inventory is reached only by
+   orders. Create the service.
+7. **Open the inbound rule** so orders can call it: in **EC2 → Security Groups**,
+   edit `inventory-sg` → **Inbound rules** → add **Custom TCP, port 8080**, and
+   for **Source** pick the orders service's security group. You don't have that
+   group yet, so come back to this after H.2 (or temporarily allow the VPC CIDR,
+   then tighten it).
 
-**`orders-service` (public, behind an ALB):**
+### H.2 — `orders-service` (public — behind an Application Load Balancer)
 
-- [ ] Launch type: **Fargate**
-- [ ] Task definition: `orders-service`
-- [ ] Service name: `orders-service`
-- [ ] Desired tasks: `1`
-- [ ] **Service Connect:** enable it with the same `microsvc.local` namespace
-      (as a **client** so it can resolve `inventory`).
-- [ ] **Load balancing:** create a new **Application Load Balancer**, listener on
-      port `80`, forwarding to a target group on container port `8080` with
-      health-check path `/health`.
-- [ ] Networking: security group must allow inbound TCP `80` from the internet
-      (via the ALB) and be allowed to reach `inventory` on `8080`.
-- [ ] Set the env var `INVENTORY_URL=http://inventory.microsvc.local:8080` on the
-      task (if it isn't already in your task definition).
+1. **Clusters → `microsvc-cluster` → Services → Create** again.
+2. **Launch type:** **FARGATE**.
+3. **Deployment configuration:**
+   - **Family:** `orders-service`, **Revision:** `1`.
+   - **Service name:** `orders-service`.
+   - **Desired tasks:** `1`.
+4. **Networking:** same VPC/subnets. Create a new security group `orders-sg`.
+5. **Service Connect:** **Turn on Service Connect**, **Namespace:**
+   `microsvc.local`, role **Client only** (orders calls inventory but nothing
+   discovers orders by name).
+6. **Load balancing:** choose **Application Load Balancer** → **Create a new load
+   balancer**.
+   - **Load balancer name:** e.g. `orders-alb`.
+   - **Listener:** port **80**, protocol **HTTP**.
+   - **Target group:** new, protocol **HTTP**, the container **port 8080**,
+     **Health check path:** `/health`.
+7. Create the service. ECS creates the ALB, target group, and registers the
+   orders task.
+8. **Finish the inventory inbound rule (from H.1 step 7):** edit `inventory-sg`'s
+   port-8080 inbound rule so its **Source** is `orders-sg`. Also confirm the
+   **ALB's** security group allows inbound **port 80 from `0.0.0.0/0`** (the
+   console usually creates this for you) so the internet can reach orders.
 
-> **Why `inventory` has no ALB but `orders` does** — only `orders` is meant to be
-> public. `inventory` is an internal dependency, reachable solely over Service
-> Connect. This is the same public/private split you modeled locally in
+> **`INVENTORY_URL`** — orders reads this to find inventory. The provided
+> `orders-service/task-definition.json` should set it to
+> `http://inventory.microsvc.local:8080`; confirm it's there. (Locally in
+> [Step 03](03-compose-local.md) it was `http://inventory:8080` — same idea,
+> different DNS namespace.)
+
+> **Why inventory has no ALB but orders does** — only `orders` is public.
+> `inventory` is an internal dependency reachable solely over Service Connect.
+> Same public/private split you modeled locally in
 > [Step 03](03-compose-local.md), where only `orders` published a host port.
 
-When both services reach `running == desired` and the ALB target group shows
-`orders` **healthy**, your infrastructure is ready. Note the **ALB DNS name** —
-you'll hit it in [Step 07](07-deploy-and-verify.md).
+### H.3 — Confirm it's healthy
+
+- In **ECS → `microsvc-cluster` → Services**, both `inventory-service` and
+  `orders-service` should reach **running count = desired count (1)**.
+- In **EC2 → Target Groups**, the orders target group should list its task as
+  **healthy** (this means `/health` returned 200 through the ALB).
+- Copy the **ALB DNS name** from **EC2 → Load Balancers → `orders-alb` → DNS
+  name** (looks like `orders-alb-123456.eu-west-1.elb.amazonaws.com`). You'll
+  curl it in [Step 07](07-deploy-and-verify.md).
 
 ---
 
@@ -177,16 +256,17 @@ you'll hit it in [Step 07](07-deploy-and-verify.md).
 
 ## Checklist
 
-- [ ] `<ACCOUNT_ID>` and `<REGION>` filled into both `task-definition.json` files
-- [ ] `ecsTaskExecutionRole` exists with `AmazonECSTaskExecutionRolePolicy`
-- [ ] ECR repos `inventory-service` and `orders-service` exist
-- [ ] Log groups `/ecs/inventory-service` and `/ecs/orders-service` exist
-- [ ] Cluster `microsvc-cluster` exists on Fargate
-- [ ] A revision of each task definition is registered
-- [ ] Cloud Map namespace `microsvc.local` exists, attached to the cluster's VPC
-- [ ] `inventory-service` runs with Service Connect, **no** ALB
-- [ ] `orders-service` runs behind an ALB, can reach `inventory` on `8080`
-- [ ] You have the **ALB DNS name** noted for Step 07
+- [ ] (A) `<ACCOUNT_ID>` and `<REGION>` filled into both `task-definition.json` files
+- [ ] (B) `ecsTaskExecutionRole` exists with `AmazonECSTaskExecutionRolePolicy`
+- [ ] (C) ECR repos `inventory-service` and `orders-service` exist (Private)
+- [ ] (D) Log groups `/ecs/inventory-service` and `/ecs/orders-service` exist
+- [ ] (E) Cluster `microsvc-cluster` exists on Fargate
+- [ ] (F) Cloud Map namespace `microsvc.local` exists, attached to the cluster's VPC
+- [ ] (G) A revision of each task definition (`inventory-service`, `orders-service`) is registered
+- [ ] (H.1) `inventory-service` runs with Service Connect, **no** ALB
+- [ ] (H.2) `orders-service` runs behind an ALB, with `inventory-sg` allowing 8080 from `orders-sg`
+- [ ] (H.3) Both services show running == desired; orders target group is **healthy**
+- [ ] (H.3) You have the **ALB DNS name** noted for Step 07
 
 ## Next
 
