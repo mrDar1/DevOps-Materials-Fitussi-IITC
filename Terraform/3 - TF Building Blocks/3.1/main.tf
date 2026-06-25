@@ -11,9 +11,9 @@ resource "aws_s3_bucket" "my_bucket" {
   bucket = var.bucket_name
 }
 
-data "aws_s3_bucket" "my_external_bucket" {
-  bucket = "not-managed-by-us"
-}
+# data "aws_s3_bucket" "my_external_bucket" {
+#   bucket = "not-managed-by-us"
+# }
 
 variable "bucket_name" {
   type        = string
