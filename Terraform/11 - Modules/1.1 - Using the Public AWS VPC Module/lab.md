@@ -15,7 +15,7 @@ The goal is to understand three ideas:
 
 By the end you will have deployed:
 
-1. A VPC named `12-public-modules` with CIDR block `10.0.0.0/16`.
+1. A VPC named `public-modules` with CIDR block `10.0.0.0/16`.
 2. A **data source** that fetches the available Availability Zones in your region.
 3. One **private** subnet — `10.0.0.0/24`.
 4. One **public** subnet — `10.0.128.0/24`.
@@ -35,7 +35,7 @@ By the end you will have deployed:
 
 ### Step 1 — Create the project folder and provider config
 
-Create a new folder named `12-public-modules`. Inside it create a file (e.g. `main.tf`) with the Terraform settings and AWS provider.
+Create a new folder named `public-modules`. Inside it create a file (e.g. `main.tf`) with the Terraform settings and AWS provider.
 
 ```hcl
 terraform {
@@ -96,7 +96,7 @@ module "vpc" {
   version = "5.5.3"
 
   cidr            = "10.0.0.0/16"
-  name            = "12-public-modules"
+  name            = "public-modules"
   azs             = data.aws_availability_zones.azs.names
   private_subnets = ["10.0.0.0/24"]
   public_subnets  = ["10.0.128.0/24"]
@@ -110,7 +110,7 @@ module "vpc" {
 | `source` | `terraform-aws-modules/vpc/aws` | Path to the module on the Terraform Registry. |
 | `version` | `5.5.3` | Pins the module version so results are reproducible. |
 | `cidr` | `10.0.0.0/16` | The overall address range of the VPC (65,536 IPs). |
-| `name` | `12-public-modules` | Name tag applied to the VPC and related resources. |
+| `name` | `public-modules` | Name tag applied to the VPC and related resources. |
 | `azs` | `data.aws_availability_zones.azs.names` | The list of AZs from the data source in Step 2. |
 | `private_subnets` | `["10.0.0.0/24"]` | One private subnet (no direct internet route). |
 | `public_subnets` | `["10.0.128.0/24"]` | One public subnet (routed to an Internet Gateway). |
@@ -125,7 +125,7 @@ module "vpc" {
 
 ### Step 4 — Initialize, plan, and apply
 
-Run the standard Terraform workflow from inside the `12-public-modules` folder:
+Run the standard Terraform workflow from inside the `public-modules` folder:
 
 ```bash
 terraform init
@@ -139,7 +139,7 @@ terraform apply
 - `terraform plan` — shows what will be created. Confirm you see a VPC, two subnets, route tables, and an Internet Gateway.
 - `terraform apply` — creates the resources. Type `yes` to confirm.
 
-> ✅ Success check: in the AWS Console (VPC service) you should see a VPC named `12-public-modules` with one public and one private subnet.
+> ✅ Success check: in the AWS Console (VPC service) you should see a VPC named `public-modules` with one public and one private subnet.
 > 
 
 ---
