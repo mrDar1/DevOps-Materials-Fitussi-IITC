@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ../../FifaApp-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+    networks:
+      - fifaapp-network
+
+  frontend:
+    build: ../../FifaApp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - fifaapp-network
+
+networks:
+  fifaapp-network:
+    driver: bridge

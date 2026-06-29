@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fifaapp-backend
+  namespace: fifaapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fifaapp-backend
+  template:
+    metadata:
+      labels:
+        app: fifaapp-backend
+    spec:
+      containers:
+        - name: backend
+          image: fifaapp-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: fifaapp-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10

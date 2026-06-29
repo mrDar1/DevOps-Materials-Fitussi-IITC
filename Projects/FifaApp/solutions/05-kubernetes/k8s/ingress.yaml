@@ -1,0 +1,30 @@
+# This ingress is for Stage 6 (EKS + ALB Ingress Controller).
+# It is NOT applied in Stage 5 (minikube).
+# In Stage 6: change frontend/service.yaml type from NodePort -> ClusterIP before applying this.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fifaapp-ingress
+  namespace: fifaapp
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: fifaapp-backend-svc
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fifaapp-frontend-svc
+                port:
+                  number: 80
