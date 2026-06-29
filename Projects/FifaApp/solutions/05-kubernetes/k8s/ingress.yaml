@@ -1,0 +1,7 @@
+# The ALB Ingress is a Stage 6 artifact — it requires the AWS Load Balancer Controller
+# which is only installed in the EKS cluster (Terraform Stage 6).
+#
+# Do NOT apply this in Stage 5 (minikube has no ALB ingress class).
+#
+# The complete ingress manifest is in:
+#   solutions/06-terraform/k8s/ingress.yaml
