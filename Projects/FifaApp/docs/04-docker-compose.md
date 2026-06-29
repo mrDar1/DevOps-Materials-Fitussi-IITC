@@ -11,8 +11,6 @@ You'll see how Docker's internal DNS lets the frontend Nginx proxy to the backen
 Create this file at the root of your workspace (one level above both repos):
 
 ```yaml
-version: '3.8'
-
 services:
   backend:
     build: ./FifaApp-backend
@@ -56,12 +54,16 @@ Compose automatically reads `.env` from the same directory and injects `${MONGO_
 Look at `FifaApp-frontend/nginx.conf`:
 
 ```nginx
+resolver 127.0.0.11 valid=30s ipv6=off;
+
 location /api {
-    proxy_pass http://backend:8000;
+    set $upstream http://backend:8000;
+    proxy_pass $upstream;
 }
 ```
 
-`backend` is the **Docker Compose service name**. When containers share a network, Docker's built-in DNS resolves service names to their container IPs automatically. This is why we don't hardcode an IP address.
+`backend` is the **Docker Compose service name**. When containers share a network, Docker's built-in DNS resolves service names to their container IPs automatically. This is why we don't hardcode an IP address.  
+The `resolver 127.0.0.11` line tells nginx to use Docker's internal DNS, and the `$upstream` variable defers resolution to request time (so the frontend container starts cleanly even before the backend is ready).
 
 ---
 

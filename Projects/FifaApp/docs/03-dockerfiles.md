@@ -33,6 +33,20 @@ It's already in your repo. It tells Nginx to:
 - Serve the static React files from `/usr/share/nginx/html`
 - Proxy any `/api/*` requests to `http://backend:8000` (the Docker Compose service name)
 
+> **Important — lazy DNS resolution:**  
+> By default nginx resolves upstream hostnames at **startup**. When running the frontend container standalone (no Compose), `backend` doesn't exist yet and nginx crashes.  
+> The fix is to add a `resolver` directive and assign the upstream to a variable so nginx resolves it at **request time** instead:
+> ```nginx
+> resolver 127.0.0.11 valid=30s ipv6=off;   # Docker's internal DNS
+> 
+> location /api {
+>     set $upstream http://backend:8000;     # defers DNS lookup to request time
+>     proxy_pass $upstream;
+>     ...
+> }
+> ```
+> Your `nginx.conf` already has this applied.
+
 ---
 
 ## Backend Dockerfile

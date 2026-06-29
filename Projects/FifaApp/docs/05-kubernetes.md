@@ -23,17 +23,32 @@ We handle this with a **ConfigMap** that overrides the nginx config inside the r
 
 ---
 
-## Build images inside minikube
+## Get images into minikube
 
-Minikube has its own Docker daemon. Build inside it so the images are available to K8s without a registry:
+Kubernetes runs inside minikube's VM/container, which has its **own** Docker daemon separate from your host. Images built on your host are not visible to K8s. You have two options:
+
+### Option A — Build directly inside minikube (recommended for local dev)
+
+Point your shell's Docker CLI at minikube's daemon, then build:
 
 ```bash
-eval $(minikube docker-env)
+eval $(minikube docker-env)   # re-points DOCKER_HOST to minikube's daemon
 docker build -t fifaapp-backend:latest ./FifaApp-backend
 docker build -t fifaapp-frontend:latest ./FifaApp-frontend
 ```
 
-> `imagePullPolicy: Never` in the manifests tells K8s to use the locally built image.
+> Run `eval $(minikube docker-env --unset)` to restore your original Docker CLI afterwards.
+
+### Option B — Load host images into minikube
+
+If you already built the images on your host (e.g. in Stage 3/4), load them in:
+
+```bash
+minikube image load fifaapp-backend:latest
+minikube image load fifaapp-frontend:latest
+```
+
+Either way, `imagePullPolicy: Never` in the manifests tells K8s to use the local image instead of pulling from a registry.
 
 ---
 
@@ -124,7 +139,12 @@ spec:
 ```
 
 ### `k8s/frontend/configmap.yaml`
-This overrides the nginx.conf baked into the image, replacing `backend:8000` with the K8s service DNS:
+This overrides the nginx.conf baked into the image, replacing `backend:8000` with the K8s service DNS.
+
+Two things are required to make this work reliably:
+1. **`resolver 10.96.0.10`** — tells nginx to use CoreDNS (K8s's DNS server). Nginx doesn't inherit the pod's `/etc/resolv.conf` resolver automatically.
+2. **Full FQDN + variable** — `fifaapp-backend-svc.fifaapp.svc.cluster.local` instead of the short name, because nginx's resolver doesn't apply the pod's DNS search domains. Using a `$variable` defers resolution to request time instead of startup.
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -135,12 +155,14 @@ data:
   default.conf: |
     server {
         listen 80;
+        resolver 10.96.0.10 valid=30s ipv6=off;
         location / {
             root /usr/share/nginx/html;
             try_files $uri $uri/ /index.html;
         }
         location /api {
-            proxy_pass http://fifaapp-backend-svc:8000;
+            set $upstream http://fifaapp-backend-svc.fifaapp.svc.cluster.local:8000;
+            proxy_pass $upstream;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -209,7 +231,10 @@ spec:
 
 ## Apply everything
 
+The namespace must exist before the other resources, so apply it first:
+
 ```bash
+kubectl apply -f k8s/namespace.yaml
 kubectl apply -R -f k8s/
 ```
 
@@ -240,7 +265,7 @@ kubectl logs -l app=fifaapp-backend -n fifaapp
 
 | | Docker Compose | Kubernetes |
 |--|--|--|
-| Backend URL in nginx | `http://backend:8000` | `http://fifaapp-backend-svc:8000` |
+| Backend URL in nginx | `http://backend:8000` | `http://fifaapp-backend-svc.fifaapp.svc.cluster.local:8000` |
 | Config injection | Baked into image | ConfigMap + volumeMount |
 | Secret | `.env` file | K8s Secret (base64) |
 | Access | `localhost:3000` | `minikube service ...` |
