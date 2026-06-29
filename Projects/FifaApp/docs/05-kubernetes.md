@@ -249,4 +249,6 @@ kubectl logs -l app=fifaapp-backend -n fifaapp
 solutions/05-kubernetes/k8s/
 ```
 
+> The solution folder also contains an `ingress.yaml`. **Do not apply it in this stage** — it requires the AWS Load Balancer Controller, which is installed in Stage 6. The file is there only as a reference and will not cause errors if skipped.
+
 **Next:** Replace minikube with a real AWS EKS cluster using Terraform (Stage 6)

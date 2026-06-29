@@ -102,13 +102,14 @@ kubectl get nodes  # verify connection
 ## Step 5 — Push images to ECR
 
 ```bash
+ECR_REGISTRY=$(terraform output -raw ecr_registry)   # e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com
 FRONTEND_URI=$(terraform output -raw ecr_frontend_uri)
 BACKEND_URI=$(terraform output -raw ecr_backend_uri)
 REGION=us-east-1
 
-# Authenticate Docker to ECR
+# Authenticate Docker to the ECR registry (one login covers all repos in the account)
 aws ecr get-login-password --region $REGION | \
-  docker login --username AWS --password-stdin $FRONTEND_URI
+  docker login --username AWS --password-stdin $ECR_REGISTRY
 
 # Build and push frontend
 docker build -t $FRONTEND_URI:latest ./FifaApp-frontend
@@ -141,15 +142,55 @@ Two changes from Stage 5:
 
 ## Step 7 — Apply manifests and ingress
 
+First, add the ALB ingress to your `k8s/` directory. You can copy it from the solutions folder:
+
 ```bash
-# Apply everything including the ingress (disabled in Stage 5)
+cp solutions/06-terraform/k8s/ingress.yaml k8s/ingress.yaml
+```
+
+Or create it manually:
+
+```yaml
+# k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fifaapp-ingress
+  namespace: fifaapp
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: fifaapp-backend-svc
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fifaapp-frontend-svc
+                port:
+                  number: 80
+```
+
+Then apply everything:
+
+```bash
 kubectl apply -f k8s/
 
-# Watch the ALB being created
+# Watch the ALB being provisioned (takes 2–3 minutes)
 kubectl get ingress -n fifaapp -w
 ```
 
-Once the ingress shows an ADDRESS, open it in your browser.
+Once `ADDRESS` appears in the ingress output, open it in your browser.
 
 ---
 

@@ -16,3 +16,8 @@ output "ecr_backend_uri" {
 output "cluster_name" {
   value = module.eks.cluster_name
 }
+
+output "ecr_registry" {
+  description = "ECR registry base URL — use this for 'docker login'"
+  value       = split("/", aws_ecr_repository.frontend.repository_url)[0]
+}

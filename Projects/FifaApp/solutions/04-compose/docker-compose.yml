@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build: ../../FifaApp-backend
+    build: ./FifaApp-backend
     ports:
       - "8000:8000"
     environment:
@@ -11,7 +11,7 @@ services:
       - fifaapp-network
 
   frontend:
-    build: ../../FifaApp-frontend
+    build: ./FifaApp-frontend
     ports:
       - "3000:80"
     depends_on:
