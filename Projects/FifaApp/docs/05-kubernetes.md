@@ -141,6 +141,9 @@ data:
         }
         location /api {
             proxy_pass http://fifaapp-backend-svc:8000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
         }
     }
 ```
@@ -207,7 +210,7 @@ spec:
 ## Apply everything
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -R -f k8s/
 ```
 
 ---

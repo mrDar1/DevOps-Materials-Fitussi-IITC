@@ -44,7 +44,7 @@ resource "aws_eks_access_policy_association" "students" {
   for_each      = aws_eks_access_entry.students
   cluster_name  = module.eks.cluster_name
   principal_arn = each.value.principal_arn
-  policy_arn    = "arn:aws:iam::aws:policy/AmazonEKSAdminPolicy"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
 
   access_scope {
     type = "cluster"

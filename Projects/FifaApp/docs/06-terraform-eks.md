@@ -184,7 +184,7 @@ spec:
 Then apply everything:
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -R -f k8s/
 
 # Watch the ALB being provisioned (takes 2–3 minutes)
 kubectl get ingress -n fifaapp -w
@@ -230,7 +230,7 @@ After `terraform apply`, each student in `students.yaml` has:
 ## Teardown (to avoid AWS costs)
 
 ```bash
-kubectl delete -f k8s/          # remove K8s resources (ALB etc.)
+kubectl delete -R -f k8s/       # remove K8s resources (ALB etc.)
 terraform destroy                # destroy all AWS infra
 ```
 
