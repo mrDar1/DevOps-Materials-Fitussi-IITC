@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: <ECR_FRONTEND_URI>:latest
+          image: <ECR_FRONTEND_URI>:<IMAGE_TAG>   # e.g. :a1b2c3d — replace with your git SHA
           imagePullPolicy: Always
           ports:
             - containerPort: 80

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: <ECR_BACKEND_URI>:latest
+          image: <ECR_BACKEND_URI>:<IMAGE_TAG>   # e.g. :a1b2c3d — replace with your git SHA
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
