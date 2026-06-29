@@ -10,48 +10,28 @@ Set up two separate GitHub repositories — one per service. This mirrors real-w
 
 ---
 
-## Step 1 — Create the repos on GitHub
+## Step 1 — Create repos and push the frontend
 
-Create two **new, empty** GitHub repos:
-- `FifaApp-frontend`
-- `FifaApp-backend`
-
-Leave them empty (no README, no `.gitignore`).
-
----
-
-## Step 2 — Clone and copy the starter code
+Navigate into the frontend folder, initialize git, commit the starter code, then let `gh` create the GitHub repo and push in one shot.
 
 ```bash
-# Clone the two new repos
-git clone https://github.com/<your-username>/FifaApp-frontend
-git clone https://github.com/<your-username>/FifaApp-backend
-
-# Copy the starter code from the course materials
-cp -r <course-materials>/Projects/FifaApp/FifaApp-frontend/. FifaApp-frontend/
-cp -r <course-materials>/Projects/FifaApp/FifaApp-backend/. FifaApp-backend/
-```
-
----
-
-## Step 3 — Initial commit and push (frontend)
-
-```bash
-cd FifaApp-frontend
+cd ~/DevOps/FifaApp/FifaApp-frontend
+git init
 git add .
 git commit -m "Initial commit: React + Vite FIFA players app"
-git push -u origin main
+gh repo create FifaApp-frontend --public --source=. --remote=origin --push
 ```
 
 ---
 
-## Step 4 — Initial commit and push (backend)
+## Step 2 — Create repo and push the backend
 
 ```bash
-cd ../FifaApp-backend
+cd ~/DevOps/FifaApp/FifaApp-backend
+git init
 git add .
 git commit -m "Initial commit: FastAPI FIFA players backend"
-git push -u origin main
+gh repo create FifaApp-backend --public --source=. --remote=origin --push
 ```
 
 ---
