@@ -36,7 +36,7 @@ gh repo create FifaApp-backend --public --source=. --remote=origin --push
 
 ---
 
-## Step 5 — Run the tests
+## Step 3 — Run the tests
 
 Verify the starter code works before moving on.
 
