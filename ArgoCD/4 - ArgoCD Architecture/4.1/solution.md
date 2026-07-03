@@ -1,6 +1,6 @@
 # Lab 4.1 – Deploy First Application
 
-## Part 0: Target the Minikube Cluster
+## ****Part 0: Target the Minikube Cluster
 
 This lab runs against the local **minikube** cluster (not a remote EKS cluster).
 Make sure `kubectl` is pointed at it before doing anything else:
@@ -11,6 +11,7 @@ kubectl config current-context
 ```
 
 **Expected output:**
+
 ```
 Switched to context "minikube".
 minikube
@@ -21,6 +22,7 @@ kubectl get nodes
 ```
 
 **Expected output:**
+
 ```
 NAME       STATUS   ROLES           AGE   VERSION
 minikube   Ready    control-plane   ...   v1.35.1
@@ -40,6 +42,7 @@ kubectl get pods -n argocd
 ```
 
 **Output:**
+
 ```
 NAME                                                READY   STATUS    RESTARTS   AGE
 argocd-application-controller-0                     1/1     Running   0          4m
@@ -78,6 +81,7 @@ spec:
 ```
 
 Key points:
+
 - `apiVersion` is `argoproj.io/v1alpha1` (custom CRD, not core `v1`).
 - `metadata.namespace` is `argocd` — the Application resource itself always lives
   in the ArgoCD namespace, regardless of where its manifests get deployed.
@@ -105,6 +109,7 @@ kubectl apply -f .
 ```
 
 **Output:**
+
 ```
 application.argoproj.io/guestbook created
 ```
@@ -116,6 +121,7 @@ kubectl get application -n argocd
 ```
 
 **Output:**
+
 ```
 NAME        SYNC STATUS   HEALTH STATUS
 guestbook   OutOfSync     Missing
@@ -129,6 +135,7 @@ kubectl describe application guestbook -n argocd
 ```
 
 **Output (excerpt):**
+
 ```
 Spec:
   Destination:
@@ -212,6 +219,7 @@ kubectl get application guestbook -n argocd
 ```
 
 **Output:**
+
 ```
 NAME           READY   UP-TO-DATE   AVAILABLE   AGE
 guestbook-ui   1/1     1            1           27s
@@ -234,6 +242,7 @@ kubectl get service -n default
 ```
 
 **Output:**
+
 ```
 NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
 guestbook-ui   ClusterIP   10.100.18.45    <none>        80/TCP    27s
@@ -245,6 +254,7 @@ kubectl port-forward service/guestbook-ui -n default 8081:80
 ```
 
 **Output:**
+
 ```
 Forwarding from 127.0.0.1:8081 -> 80
 Forwarding from [::1]:8081 -> 80
@@ -259,13 +269,14 @@ is up and reachable.
 
 ## Key Takeaways
 
-| Concept | Detail |
-|---|---|
-| `Application` CRD | `apiVersion: argoproj.io/v1alpha1`, `kind: Application` |
-| Where it lives | Application resource → `argocd` namespace; deployed manifests → `spec.destination.namespace` |
-| `source.repoURL` | Must be nested under `source`, not a top-level string |
-| `targetRevision: HEAD` | Rolling pointer to latest commit — fine for labs, use tags/SHAs in production |
-| Default sync policy | Manual — drift is detected (`OutOfSync`) but not auto-applied |
-| Sync | Creates Service → Deployment → ReplicaSet → Pod, in that order |
-| Access | `kubectl port-forward service/guestbook-ui -n default 8081:80` |
-| Resource tracking | ArgoCD stamps `argocd.argoproj.io/tracking-id: guestbook:apps/Deployment:default/guestbook-ui` on every managed resource — that's how it knows a resource belongs to this Application |
+
+| Concept                | Detail                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Application` CRD      | `apiVersion: argoproj.io/v1alpha1`, `kind: Application`                                                                                                                               |
+| Where it lives         | Application resource →`argocd` namespace; deployed manifests → `spec.destination.namespace`                                                                                         |
+| `source.repoURL`       | Must be nested under`source`, not a top-level string                                                                                                                                  |
+| `targetRevision: HEAD` | Rolling pointer to latest commit — fine for labs, use tags/SHAs in production                                                                                                        |
+| Default sync policy    | Manual — drift is detected (`OutOfSync`) but not auto-applied                                                                                                                        |
+| Sync                   | Creates Service → Deployment → ReplicaSet → Pod, in that order                                                                                                                     |
+| Access                 | `kubectl port-forward service/guestbook-ui -n default 8081:80`                                                                                                                        |
+| Resource tracking      | ArgoCD stamps`argocd.argoproj.io/tracking-id: guestbook:apps/Deployment:default/guestbook-ui` on every managed resource — that's how it knows a resource belongs to this Application |
