@@ -54,87 +54,21 @@ cannot assume the role.
 
 ## Step 1 — Create the GitHub OIDC provider and IAM role (Terraform)
 
-In `FifaApp-infra/terraform/`, create `github-oidc.tf`:
+In `FifaApp-infra/terraform/`, create a new Terraform file called `github-oidc.tf`.
 
-```hcl
-variable "github_org" {
-  description = "GitHub org or username that owns FifaApp-backend and FifaApp-frontend"
-  type        = string
-}
+This file should:
+- Define an input variable for your GitHub organization name
+- Fetch the TLS certificate from GitHub's OIDC provider endpoint
+- Create an AWS IAM OIDC provider that trusts `token.actions.githubusercontent.com`
+- Create an IAM policy document that allows workflows to assume a role, with conditions that:
+  - Validate the audience is `sts.amazonaws.com`
+  - Restrict access to only workflows running on the `main` branch of `FifaApp-backend` and `FifaApp-frontend`
+  - Explicitly deny credentials to PR builds (they run on non-main branches)
+- Create an IAM role for GitHub Actions that uses this assume role policy
+- Attach the same ECR access policy that student IAM users received in Stage 6
+- Output the role ARN so you can use it as a secret in the app repositories
 
-data "tls_certificate" "github" {
-  url = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
-}
-
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
-}
-
-data "aws_iam_policy_document" "github_assume_role" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    # Only workflows on the main branch of these two repos can assume the role.
-    # PR builds never get AWS credentials.
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_org}/FifaApp-backend:ref:refs/heads/main",
-        "repo:${var.github_org}/FifaApp-frontend:ref:refs/heads/main",
-      ]
-    }
-  }
-}
-
-resource "aws_iam_role" "github_actions" {
-  name               = "fifaapp-github-actions"
-  assume_role_policy = data.aws_iam_policy_document.github_assume_role.json
-  tags               = { Project = "FifaApp" }
-}
-
-# Same ECR push/pull policy the student IAM users got in Stage 6 — nothing more
-resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
-  role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.ecr_access.arn
-}
-
-output "gha_role_arn" {
-  description = "Set this as the AWS_ROLE_ARN secret in both app repos"
-  value       = aws_iam_role.github_actions.arn
-}
-```
-
-Set `github_org` in the TFC workspace (Variables → Terraform variable, key `github_org`,
-value your GitHub org or username), then commit and push — TFC picks it up via VCS,
-same flow as Stage 6:
-
-```bash
-cd FifaApp-infra
-git add terraform/github-oidc.tf
-git commit -m "Add GitHub Actions OIDC role"
-git push
-```
-
-Confirm & Apply in the TFC UI, then grab the role ARN from the outputs:
-
-```
-gha_role_arn = "arn:aws:iam::123456789012:role/fifaapp-github-actions"
-```
+Set the `github_org` Terraform variable in your Terraform Cloud workspace using the web UI, then commit and push your new file. This follows the same VCS-driven flow as Stage 6. Apply the changes in the TFC UI and copy the `gha_role_arn` output — you'll need it in Step 3.
 
 > **Least privilege:** the role reuses `aws_iam_policy.ecr_access` from Stage 6's
 > `iam-users.tf` — CI gets exactly the same ECR permissions your student IAM user has,
@@ -142,251 +76,137 @@ gha_role_arn = "arn:aws:iam::123456789012:role/fifaapp-github-actions"
 
 ---
 
-## Step 2 — Create a PAT so CI can push to FifaApp-infra
+## Step 2 — Create a Personal Access Token (PAT) for CI to push to FifaApp-infra
 
-The automatic `GITHUB_TOKEN` a workflow gets only works **inside its own repo**. The CD job
-must push a commit to a *different* repo — `FifaApp-infra` — so it needs a Personal Access Token.
+The automatic `GITHUB_TOKEN` that GitHub Actions provides only works **inside the repository where the workflow runs**. Since the CD job must commit and push to a *different* repository (`FifaApp-infra`), you need a Personal Access Token.
 
-GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens →
-Generate new token**:
+Create a fine-grained Personal Access Token through your GitHub settings:
+- Scope it to only the `FifaApp-infra` repository
+- Grant it **Contents** permission with **Read and write** access
+- Do not grant any other permissions
 
-- **Repository access:** Only select repositories → `FifaApp-infra`
-- **Permissions:** Contents → **Read and write** (nothing else)
+Copy the generated token value (it will start with `github_pat_`). You'll store this as a secret in the next step.
 
-Copy the `github_pat_...` value — you'll store it as a secret in the next step.
-
-> **Why a PAT and not a deploy key?** A deploy key means generating SSH key pairs and
-> configuring the git remote for SSH. A fine-grained PAT is one `token:` line in the
-> workflow. Note the default expiry is **90 days** — when your pipeline suddenly fails
-> with 403 three months from now, this is why.
+> **Why a PAT and not a deploy key?** A deploy key requires SSH setup and changing git remotes. A fine-grained PAT requires only one environment variable in the workflow. Note the default expiry is **90 days** — plan ahead for token rotation when your pipeline starts failing with 403 errors after 90 days.
 
 ---
 
 ## Step 3 — Add secrets to BOTH app repos
 
-Two secrets, same values in both repos:
+Add the following secrets to both `FifaApp-backend` and `FifaApp-frontend` repositories:
 
-| Secret | Value | Used by |
+| Secret Name | Value | Purpose |
 |--|--|--|
-| `AWS_ROLE_ARN` | `gha_role_arn` output from Step 1 | `build-push` job (OIDC assume-role) |
-| `INFRA_REPO_TOKEN` | The PAT from Step 2 | `update-manifest` job (push to FifaApp-infra) |
+| `AWS_ROLE_ARN` | The role ARN output from Step 1 | Used by the build job to assume the GitHub Actions role via OIDC |
+| `INFRA_REPO_TOKEN` | The PAT you created in Step 2 | Used by the manifest update job to push commits to FifaApp-infra |
 
-```bash
-ORG=<your-org>
-ROLE_ARN="arn:aws:iam::123456789012:role/fifaapp-github-actions"
+You can add these secrets through:
+- The GitHub CLI: `gh secret set` for each secret in each repo
+- The UI: Navigate to repository **Settings → Secrets and variables → Actions → New repository secret**
 
-gh secret set AWS_ROLE_ARN     --repo $ORG/FifaApp-backend  --body "$ROLE_ARN"
-gh secret set INFRA_REPO_TOKEN --repo $ORG/FifaApp-backend  --body "github_pat_..."
-gh secret set AWS_ROLE_ARN     --repo $ORG/FifaApp-frontend --body "$ROLE_ARN"
-gh secret set INFRA_REPO_TOKEN --repo $ORG/FifaApp-frontend --body "github_pat_..."
-```
+The values must be identical across both repositories.
 
-(Or via the UI: repo → **Settings → Secrets and variables → Actions → New repository secret**.)
-
-> **Note:** the region and ECR repo names are plain `env:` values in the workflow file,
-> not secrets. Not everything is a secret — only credentials are.
+> **Note:** AWS region and ECR repository names are not secrets — they're environment variables defined in the workflow file itself. Only store actual credentials as secrets.
 
 ---
 
 ## Step 4 — The backend workflow
 
-In `FifaApp-backend`, create `.github/workflows/ci-cd.yml` (the path matters — GitHub only
-runs workflows from this exact directory):
+In `FifaApp-backend`, create a new GitHub Actions workflow file at `.github/workflows/ci-cd.yml` (the exact path is required — GitHub only runs workflows from this directory).
 
-```yaml
-name: CI/CD
+This workflow should trigger on both `push` to `main` and `pull_request` to `main`.
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+**Workflow structure:**
 
-permissions:
-  id-token: write # required for OIDC — lets this run request a token AWS can verify
-  contents: read
+The workflow should include three jobs:
 
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: fifaapp-backend
+1. **`test` job:** 
+   - Check out the repository
+   - Set up Python 3.11 environment with pip caching
+   - Install dependencies from requirements.txt
+   - Run the test suite using pytest with verbose output
+   - This job runs for both pushes and pull requests
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+2. **`build-push` job:**
+   - Depends on the `test` job completing successfully
+   - Only runs on `push` events (PRs skip this job)
+   - Check out the repository
+   - Compute a short SHA tag (first 7 characters of `GITHUB_SHA`) to identify the image
+   - Configure AWS credentials using OIDC (use the `AWS_ROLE_ARN` secret and `us-east-1` region)
+   - Login to ECR
+   - Build a Docker image and push it to ECR with the short SHA tag
+   - Output the registry URL and image tag for the next job to use
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
+3. **`update-manifest` job:**
+   - Depends on `build-push` completing successfully
+   - Check out the `FifaApp-infra` repository (not the app repo) using the `INFRA_REPO_TOKEN` secret
+   - Update the `k8s/backend/deployment.yaml` file to use the new image tag from the previous job
+   - Configure git with the bot identity
+   - Commit the manifest update
+   - Pull with rebase before pushing to handle concurrent frontend pipeline updates
+   - Push the commit back to FifaApp-infra
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+**Key requirements:**
+- Grant the workflow `id-token: write` permission for OIDC to work
+- Define environment variables for `AWS_REGION` (us-east-1) and `ECR_REPOSITORY` (fifaapp-backend)
+- Replace `<your-org>` with your actual GitHub organization in the checkout step
 
-      - name: Run tests
-        run: pytest tests/ -v
+Commit this workflow file to the repository and push it. You can watch it run in the **Actions** tab.
 
-  build-push:
-    needs: test
-    if: github.event_name == 'push' # PRs stop after tests
-    runs-on: ubuntu-latest
-    outputs:
-      registry: ${{ steps.ecr.outputs.registry }}
-      image_tag: ${{ steps.meta.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Compute short SHA tag
-        id: meta
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push image
-        run: |
-          IMAGE=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-
-  update-manifest:
-    needs: build-push
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: <your-org>/FifaApp-infra
-          token: ${{ secrets.INFRA_REPO_TOKEN }}
-
-      - name: Update image tag and push
-        run: |
-          IMAGE=${{ needs.build-push.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ needs.build-push.outputs.image_tag }}
-          sed -i "s|image: .*|image: $IMAGE|" k8s/backend/deployment.yaml
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add k8s/backend/deployment.yaml
-          git commit -m "Deploy ${ECR_REPOSITORY}:${{ needs.build-push.outputs.image_tag }}"
-          git pull --rebase origin main
-          git push
-```
-
-Replace `<your-org>` in the `update-manifest` checkout, then walk through what each job does:
-
-- **`on:`** — both `push` to main and `pull_request`. The `if: github.event_name == 'push'`
-  on `build-push` is what makes PRs test-only: the job (and everything after it) is skipped.
-- **`permissions: id-token: write`** — the single line that makes OIDC work. It lets the run
-  request a signed token from GitHub that AWS verifies against the trust policy from Step 1.
-- **`test`** — the exact `pytest tests/ -v` from Stage 2. No MongoDB needed: the tests mock
-  the collection, so there's no service container and no `MONGO_URI`.
-- **`build-push`** — `configure-aws-credentials` exchanges the OIDC token for temporary AWS
-  credentials (`role-to-assume` — no access keys anywhere). `${GITHUB_SHA::7}` is the CI
-  equivalent of Stage 7's `git rev-parse --short HEAD`. The registry and tag are exposed as
-  **job outputs** so the next job can read them via `needs.build-push.outputs.*`.
-- **`update-manifest`** — checks out the *other* repo using the PAT, then runs the same `sed`
-  you ran by hand in Stage 7 Step 6, commits as `github-actions[bot]`, and pushes.
-  `git pull --rebase` first, in case the frontend pipeline pushed a moment earlier.
-
-Commit and push:
-
-```bash
-cd FifaApp-backend
-git add .github/
-git commit -m "Add CI/CD workflow"
-git push
-```
-
-Watch it run in the repo's **Actions** tab, or:
-
-```bash
-gh run watch
-```
-
-> **If a future stage adds real integration tests** that hit MongoDB, the `test` job would
-> need a `services:` block with a mongo container. Today's tests are fully mocked, so it doesn't.
+> **If a future stage adds real integration tests** that hit MongoDB, the `test` job would need a `services:` block with a mongo container. Today's tests are fully mocked, so it doesn't.
 
 ---
 
 ## Step 5 — The frontend workflow
 
-Copy the same file into `FifaApp-frontend/.github/workflows/ci-cd.yml` and change exactly
-four things:
+Create the same workflow in `FifaApp-frontend/.github/workflows/ci-cd.yml`, but adapt it for the Node.js/frontend stack:
 
-| | Backend | Frontend |
+| Component | Backend | Frontend |
 |--|--|--|
-| Runtime setup | `actions/setup-python@v5`, python 3.11, `cache: pip` | `actions/setup-node@v4`, node 20, `cache: npm` |
-| Install | `pip install -r requirements.txt` | `npm ci` |
-| Tests | `pytest tests/ -v` | `npm run test` |
-| Target | `ECR_REPOSITORY: fifaapp-backend`, `k8s/backend/deployment.yaml` | `ECR_REPOSITORY: fifaapp-frontend`, `k8s/frontend/deployment.yaml` |
+| Runtime setup | Python 3.11 with pip caching | Node 20 with npm caching |
+| Install command | `pip install -r requirements.txt` | `npm ci` |
+| Test command | `pytest tests/ -v` | `npm run test` |
+| ECR repository name | `fifaapp-backend` | `fifaapp-frontend` |
+| Manifest file | `k8s/backend/deployment.yaml` | `k8s/frontend/deployment.yaml` |
 
-Full file in `solutions/08-github-actions/frontend/.github/workflows/ci-cd.yml`.
+Otherwise, the three-job structure, permissions, secrets, and OIDC configuration remain identical to the backend workflow.
 
 ---
 
 ## Step 6 — Watch the full loop end-to-end
 
-Make a visible change and push:
+Make a visible change to the FifaApp-backend code (for example, update player validation logic or a comment), commit it with a descriptive message, and push to the main branch.
 
-```bash
-cd FifaApp-backend
-# ... edit something ...
-git add . && git commit -m "Fix: improve player validation"
-git push
+**Follow the change through the pipeline:**
 
-gh run watch
-```
+1. **Monitor the workflow run:** Watch the GitHub Actions workflow execute in the repository's **Actions** tab. Observe that the test, build-push, and update-manifest jobs all complete successfully.
 
-Then follow the change through each hop:
+2. **Verify the infra repo received the commit:** Pull the latest changes from the FifaApp-infra repository and check the git log. You should see a recent commit from the `github-actions[bot]` user with a message indicating the new image tag (e.g., "Deploy fifaapp-backend:abc1234").
 
-```bash
-# 1. CI committed to the infra repo on your behalf
-cd ../FifaApp-infra
-git pull && git log -1
-```
-```
-Author: github-actions[bot]
-    Deploy fifaapp-backend:a1b2c3d
-```
+3. **Check ArgoCD deployment:** Use kubectl to verify the deployment rolled out successfully in the `fifaapp` namespace. The backend deployment should show that it's synced to the new image.
 
-```bash
-# 2. ArgoCD picked it up and rolled out
-kubectl rollout status deployment/fifaapp-backend -n fifaapp
-```
-```
-deployment "fifaapp-backend" successfully rolled out
-```
+4. **Verify in ArgoCD UI:** The ArgoCD dashboard (from Stage 7) should display the updated SHA tag on the backend application.
 
-The ArgoCD UI (Stage 7 Step 5) now shows the new SHA tag on the backend deployment.
-
-> **You just shipped to Kubernetes by running `git push`.** Tests, image build, ECR push,
-> manifest update, deploy — zero manual steps. That's the whole point of the course.
+> **You just shipped to Kubernetes by running `git push`.** Tests, image build, ECR push, manifest update, and deployment all happened automatically — zero manual steps. That's the goal of this course.
 
 ---
 
 ## Step 7 — Verify the PR path
 
-```bash
-cd FifaApp-backend
-git checkout -b break-a-test
-# ... make a test fail on purpose (e.g. change an expected value in tests/test_health.py) ...
-git add . && git commit -m "Test the PR gate"
-git push -u origin break-a-test
-gh pr create --fill
-```
+Create a test branch and intentionally break a test (e.g., modify an expected value in a test file). Commit the change and push the branch. Create a pull request against main.
 
-On the PR page: only the `test` job runs — `build-push` and `update-manifest` show as
-**Skipped** — and the red ❌ marks the PR as failing. No image was built, no deploy happened.
-Fix the test, push again, watch it go green.
+**Observe the PR workflow:**
 
-> **Optional:** repo → Settings → Branches → add a branch protection rule on `main` requiring
-> the `test` check to pass. Now broken code *cannot* be merged.
+On the PR page, verify that:
+- Only the `test` job runs
+- The `build-push` and `update-manifest` jobs show as **Skipped** because the workflow detected it's a PR, not a push
+- The test job fails (red ❌), marking the PR as failing
+- No Docker image was built or pushed to ECR
+- No commit was made to FifaApp-infra
+
+Fix the test (revert your intentional break), push the fix to the same branch, and watch the PR automatically re-run and go green.
+
+**Optional security enhancement:** Configure a branch protection rule on `main` in the repository settings to require the `test` check to pass before allowing merges. This prevents broken code from reaching production.
 
 ---
 
