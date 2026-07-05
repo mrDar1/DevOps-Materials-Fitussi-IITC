@@ -1,0 +1,64 @@
+apiVersion: v1
+data:
+  default-prometheus-kube-prometheus-alertmanager.rules-13e5558e-100e-4636-8865-af048b715841.yaml: |
+    groups:
+    - name: alertmanager.rules
+      rules:
+      - alert: AlertmanagerFailedReload
+        annotations:
+          description: Configuration has failed to load for {{ $labels.namespace }}/{{
+            $labels.pod}}.
+          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/alertmanager/alertmanagerfailedreload
+          summary: Reloading an Alertmanager configuration has failed.
+        expr: |-
+          # Without max_over_time, failed scrapes could create false negatives, see
+          # https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0 for details.
+          max_over_time(alertmanager_config_last_reload_successful{job="prometheus-kube-prometheus-alertmanager",container="alertmanager",namespace="default"}[5m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+      - alert: AlertmanagerMembersInconsistent
+        annotations:
+          description: Alertmanager {{ $labels.namespace }}/{{ $labels.pod}} has only
+            found {{ $value }} members of the {{$labels.job}} cluster.
+          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/alertmanager/alertmanagermembersinconsistent
+          summary: A member of an Alertmanager cluster has not found all other cluster
+            members.
+        expr: |-
+          # Without max_over_time, failed scrapes could create false negatives, see
+          # https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0 for details.
+            max_over_time(alertmanager_cluster_members{job="prometheus-kube-prometheus-alertmanager",container="alertmanager",namespace="default"}[5m])
+          < on (namespace,service,cluster) group_left
+            count by (namespace,service,cluster) (max_over_time(alertmanager_cluster_members{job="prometheus-kube-prometheus-alertmanager",container="alertmanager",namespace="default"}[5m]))
+        for: 15m
+        labels:
+          severity: critical
+      - alert: AlertmanagerFailedToSendAlerts
+        annotations:
+          description: Alertmanager {{ $labels.namespace }}/{{ $labels.pod}} failed to
+            send {{ $value | humanizePercentage }} of notifications to {{ $labels.integration
+            }}.
+          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/alertmanager/alertmanagerfailedtosendalerts
+          summary: An Alertmanager instance failed to send notifications.
+        expr: |-
+          (
+            rate(alertmanager_notifications_failed_total{job="prometheus-kube-prometheus-alertmanager",container="alertmanager",namespace="default"}[15m])
+          /
+            ignoring (reason) group_left rate(alertmanager_notifications_total{job="prometheus-kube-prometheus-alertmanager",container="alertmanager",namespace="default"}[15m])
+          )
+          > 0.01
+        for: 5m
+        labels:
+          severity: warning
+      - alert: AlertmanagerClusterFailedToSendAlerts
+        annotations:
+          description: The minimum notification failure rate to {{ $labels.integration
+            }} sent from any instance in the {{$labels.job}} cluster is {{ $value | humanizePercentage
+            }}.
+          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/alertmanager/alertmanagerclusterfailedtosendalerts
+          summary: All Alertmanager instances in a cluster failed to send notifications
+            to a critical integration.
+
+# ... (truncated for readability — the full ConfigMap holds 35 rule files / ~3,200 lines.
+#      Regenerate the full version with:
+#      kubectl get configmap prometheus-prometheus-kube-prometheus-prometheus-rulefiles-0 -o yaml > rules-configmap.yaml)

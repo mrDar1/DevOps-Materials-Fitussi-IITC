@@ -1,0 +1,97 @@
+TOPIC: Intro — Prometheus Stack Recap & Kubernetes Deployment Options (manual YAML vs Operator vs Helm)
+TIMESTAMP RANGE: 00:00:00 - 00:03:11
+
+[00:00:00] in this video i'll show you how to set
+[00:00:02] up prometheus in kubernetes cluster
+[00:00:05] in the theoretic part of prometheus i
+[00:00:07] explained how it works
+[00:00:08] and what are the parts or components of
+[00:00:11] prometheus
+[00:00:12] so there is a prometheus server at its
+[00:00:14] core
+[00:00:15] that stores and processes the metrics
+[00:00:17] data
+[00:00:18] and there is an alert manager that you
+[00:00:21] can use to
+[00:00:22] send alerts based on the data prometheus
+[00:00:25] collected and processed
+[00:00:26] and of course you want to see the data
+[00:00:28] you have gathered
+[00:00:30] and scraped in prometheus visualized in
+[00:00:33] the ui
+[00:00:34] prometheus has its own ui but you can
+[00:00:36] also use a ui for
+[00:00:38] data visualization like gerfana which
+[00:00:40] lets you build
+[00:00:41] pretty powerful visualization dashboards
+[00:00:44] from prometheus metrics data
+[00:00:46] so there are several moving parts and
+[00:00:48] components
+[00:00:50] in prometheus monitoring stack so how do
+[00:00:52] you go about
+[00:00:53] deploying it in kubernetes cluster and
+[00:00:56] there's actually
+[00:00:57] several different ways of doing that
+[00:00:59] first one
+[00:01:00] is putting together all the
+[00:01:03] configuration files
+[00:01:04] you need for all the parts so for
+[00:01:07] each component of the prometheus
+[00:01:09] monitoring stack
+[00:01:11] basically creating those yemo files for
+[00:01:13] prometheus stateful set
+[00:01:15] alert manager grafana deployments all
+[00:01:18] the config maps and secrets that you
+[00:01:20] need
+[00:01:20] etc and then going ahead and executing
+[00:01:23] them
+[00:01:24] in the right order because of the
+[00:01:26] dependencies
+[00:01:27] honestly i can't really think of many
+[00:01:29] use cases
+[00:01:30] in which you would go with this option
+[00:01:32] because it's pretty inefficient it's a
+[00:01:34] lot of effort and you pretty much need
+[00:01:36] to know
+[00:01:37] what you're doing or you have to find a
+[00:01:39] good step-by-step guide and hope that
+[00:01:42] each step works as described
+[00:01:44] which usually it doesn't the second way
+[00:01:47] and a more efficient way is using what's
+[00:01:50] called
+[00:01:51] operator i will explain the concept of
+[00:01:54] operators
+[00:01:55] in more detail in a later video and i'll
+[00:01:57] link it up there
+[00:01:58] but generally speaking think of an
+[00:02:01] operator as a manager
+[00:02:03] of all prometheus individual components
+[00:02:06] that you create
+[00:02:08] so stateful set and deployment for
+[00:02:10] example will manage their pod replicas
+[00:02:13] like restart them when they die make
+[00:02:15] sure they're accessible
+[00:02:16] and so on in the same way operator will
+[00:02:19] keep an eye and manage the combination
+[00:02:21] of stateful set deployments and all the
+[00:02:24] other components
+[00:02:26] that make up prometheus stack
+[00:02:29] as one unit so that you don't have to
+[00:02:32] manually manage those separate
+[00:02:33] pieces so in this option you would go
+[00:02:35] and find an operator
+[00:02:37] for prometheus and deployed in a cluster
+[00:02:40] using the configuration files of the
+[00:02:42] operator the third option which
+[00:02:44] i think is the most efficient one is
+[00:02:46] using
+[00:02:47] helm chart to deploy the operator
+[00:02:49] prometheus operator has
+[00:02:51] a helm chart that is maintained by the
+[00:02:53] helm community itself
+[00:02:55] and this is the option that we will use
+[00:02:58] in this video to set up prometheus
+[00:03:00] monitoring
+[00:03:02] so helm will do the initial setup
+[00:03:05] and operator will then manage
+[00:03:08] the running prometheus setup

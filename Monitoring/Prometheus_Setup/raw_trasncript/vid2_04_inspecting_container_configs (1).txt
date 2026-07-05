@@ -1,0 +1,112 @@
+TOPIC: Inspecting Prometheus/Alertmanager/Operator Containers, Images, and Mounted Config
+TIMESTAMP RANGE: 00:10:00 - 00:14:19
+
+[00:10:00] we can also check
+[00:10:03] what's inside the prometheus operator
+[00:10:06] and other parts actually what containers
+[00:10:08] are running inside which images are they
+[00:10:10] based on and so on
+[00:10:11] so i'm gonna print out the stateful sets
+[00:10:15] and this is the prometheus one so
+[00:10:19] we can do describe
+[00:10:25] stateful set
+[00:10:32] and we can save it in the file so that
+[00:10:35] we can see the
+[00:10:36] syntax highlighting and stuff better so
+[00:10:38] i'm just going to call it
+[00:10:40] prometheus and we can also see what's
+[00:10:44] inside alert manager
+[00:10:50] and what's also interesting is the
+[00:10:53] operator itself so this one right here
+[00:10:59] it's a deployment describe
+[00:11:03] deployment
+[00:11:06] and this is the operator
+[00:11:11] so basically describe just gives you um
+[00:11:14] some information
+[00:11:16] about the container and the images and
+[00:11:18] stuff like this
+[00:11:19] you can also get the whole uh
+[00:11:20] configuration file
+[00:11:22] using kubectl get um deployment
+[00:11:25] and then you output it as a yemel but i
+[00:11:28] just want to look into the
+[00:11:30] containers in the images so let's
+[00:11:32] actually open those files
+[00:11:34] in the editor so these are the files
+[00:11:37] let's actually go to the
+[00:11:39] section where the containers are
+[00:11:42] and that's it right so these are the
+[00:11:45] containers
+[00:11:46] this is the main pod where the whole
+[00:11:48] thing is
+[00:11:49] running where the actual prometheus is
+[00:11:52] running
+[00:11:53] and we have prometheus container we have
+[00:11:55] the config reloader
+[00:11:56] and we have rules config reloader and
+[00:11:58] i'm going to explain in
+[00:12:00] just a minute what they are so let's
+[00:12:02] first look at the prometheus
+[00:12:03] sometimes it's interesting to see what
+[00:12:06] images they're based on
+[00:12:08] and which versions you have so you can
+[00:12:10] check it here actually
+[00:12:11] um you also see which port they're
+[00:12:13] running at and so on
+[00:12:15] and all the arguments in case you need
+[00:12:17] to check
+[00:12:18] something here what's also interesting
+[00:12:20] are the mounts
+[00:12:21] so this is where prometheus gets
+[00:12:23] actually all the configuration
+[00:12:25] data so for example there's prometheus
+[00:12:27] configuration file
+[00:12:28] there is a rules file and some
+[00:12:31] certificates
+[00:12:32] and everything all these is mounted into
+[00:12:35] prometheus pod
+[00:12:36] so that it has access to it so what you
+[00:12:39] need to know
+[00:12:40] about this is that configuration file is
+[00:12:43] where prometheus basically defines
+[00:12:45] what endpoints it should scrape so it
+[00:12:48] has all the
+[00:12:49] addresses of applications they'd
+[00:12:52] expose the slash metrics endpoint so it
+[00:12:55] knows where to
+[00:12:56] get them from and it also has rules file
+[00:12:59] rules file basically defines different
+[00:13:02] rules
+[00:13:03] for example it could be alerting rules
+[00:13:06] that
+[00:13:06] states that when for example something
+[00:13:08] happens on the server or
+[00:13:10] cpu usage spikes to a certain percentage
+[00:13:14] then send out this email to some people
+[00:13:17] so these are separate configuration
+[00:13:19] files
+[00:13:19] and both of them are mounted into a
+[00:13:22] prometheus pod
+[00:13:23] and here these two side containers
+[00:13:26] so to say the helper containers of the
+[00:13:29] main prometheus
+[00:13:30] they help reloading so for example when
+[00:13:33] the configuration
+[00:13:34] changes these containers are responsible
+[00:13:37] for reloading
+[00:13:38] and letting prometheus know that there
+[00:13:40] are changes in the configuration
+[00:13:42] so this is the config reloader and
+[00:13:45] obviously
+[00:13:46] the config reloader has access to
+[00:13:48] prometheus configuration file
+[00:13:51] and this is the endpoint of prometheus
+[00:13:53] itself
+[00:13:54] because it's running on a port 9090
+[00:13:57] and this is a mount path inside the pod
+[00:14:00] so each container can access that
+[00:14:02] path and then we also have the rules
+[00:14:05] config file that does the same but for
+[00:14:06] the rules file basically and this one
+[00:14:08] obviously has access to
+[00:14:10] where the rules file lives

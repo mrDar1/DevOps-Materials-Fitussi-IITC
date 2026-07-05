@@ -1,0 +1,117 @@
+TOPIC: Accessing the Grafana UI via Port-Forward & Exploring Dashboards
+TIMESTAMP RANGE: 00:19:15 - 00:23:24
+
+[00:19:15] so now let's go back to the console
+[00:19:18] let's actually clear that
+[00:19:19] and i'm gonna print out the services
+[00:19:22] that we have
+[00:19:24] so here you see grafana this is the ui
+[00:19:27] or data visualization for um prometheus
+[00:19:30] data
+[00:19:31] so how do we access the ui for grafana
+[00:19:34] as you see all the services are cluster
+[00:19:36] ip type which is
+[00:19:37] the internal service so they're not open
+[00:19:40] to external
+[00:19:41] requests they're all closed so usually
+[00:19:43] in production what you would do
+[00:19:45] is you would configure ingress and then
+[00:19:48] point ingress rules
+[00:19:50] to prometheus grafana so in this setup
+[00:19:52] we're gonna access grafana
+[00:19:54] um using port forward so for that we
+[00:19:57] need a deployment actually and not
+[00:19:59] service so i'm gonna
+[00:20:03] check that so we need graphana
+[00:20:06] deployment
+[00:20:07] the command is cube ctl port forward
+[00:20:14] actually let's get the pod cube cdl pod
+[00:20:18] and let's check the port where grafana
+[00:20:21] is running
+[00:20:24] keep ctl locks
+[00:20:29] so we have multiple containers inside
+[00:20:32] and we need to choose one graffana
+[00:20:36] so we see servers listening at port 3000
+[00:20:39] this is the port we're going to forward
+[00:20:41] and we also have user the default user
+[00:20:44] which is
+[00:20:45] called admin let's actually clear that
+[00:20:49] cube ctl port forward
+[00:20:52] deployment deployment
+[00:20:56] prometheus grafana that's what
+[00:20:59] that's what it was called and port 3000
+[00:21:04] and this will open port 3000 localhost
+[00:21:08] 3000 and we have the login page
+[00:21:11] so we saw that default username is
+[00:21:14] admin the password actually looked up
+[00:21:17] here in the chart
+[00:21:18] the prometheus operator chart here you
+[00:21:21] have the default password
+[00:21:25] you can change it of course and now we
+[00:21:28] have the
+[00:21:30] grafana ui so in grafana you have a
+[00:21:33] pretty good overview of the whole stack
+[00:21:35] for example you can see different alert
+[00:21:37] rules you can also
+[00:21:39] use promql query language to
+[00:21:42] create the data from the prometheus
+[00:21:44] database and you can get different kinds
+[00:21:46] of data
+[00:21:47] and you can also see the data that
+[00:21:48] prometheus is already collecting and
+[00:21:50] scraping
+[00:21:51] so in manage dashboards you have a list
+[00:21:53] of the things that
+[00:21:54] prometheus stack is monitoring already
+[00:21:57] so as i said
+[00:21:59] node exporter already scrapes the
+[00:22:01] information about the
+[00:22:02] node itself we just have one node which
+[00:22:05] is mini cube
+[00:22:06] so this is the ip address of the mini
+[00:22:08] cube node
+[00:22:09] you can check that here so this is the
+[00:22:12] same one
+[00:22:14] and here you can see uh different
+[00:22:16] metrics
+[00:22:17] of minicube node like cpu usage memory
+[00:22:20] usage etc
+[00:22:22] so i'm gonna get parts doesn't matter
+[00:22:26] so this is a node exporter that scrapes
+[00:22:29] that
+[00:22:29] and the with the cube state metrics we
+[00:22:32] also have
+[00:22:32] information of different parts or
+[00:22:35] different components
+[00:22:36] of kubernetes like api server the parts
+[00:22:39] name
+[00:22:40] spaces and so on so we can actually
+[00:22:42] check that for example in
+[00:22:43] the pod you can get different metrics
+[00:22:45] like again cpu usage
+[00:22:48] memory bandwidth and so on and
+[00:22:51] here you can choose the namespace and
+[00:22:53] you can choose different parts that you
+[00:22:55] want to
+[00:22:56] check the status of you also have
+[00:23:00] monitoring of the master processes like
+[00:23:03] the scheduler
+[00:23:04] and api server where you can also see
+[00:23:06] some stuff
+[00:23:07] and prometheus also monitors itself by
+[00:23:10] default so you have a prometheus
+[00:23:11] endpoint
+[00:23:12] that is being scraped and here you can
+[00:23:14] see different stuff
+[00:23:16] later when we add configuration to
+[00:23:17] prometheus
+[00:23:19] to scrape different endpoints we will
+[00:23:21] see some additional components here as
+[00:23:23] well
+[00:23:24] and you can also create your own
+[00:23:25] dashboards depending on what
+[00:23:27] information you want to see in addition
+[00:23:29] to grafana you also have
+[00:23:32] other ui so for example prometheus
+[00:23:35] itself has its own ui so we can access
+[00:23:39] them also using the port forward

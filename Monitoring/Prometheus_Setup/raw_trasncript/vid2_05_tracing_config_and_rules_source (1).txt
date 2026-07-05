@@ -1,0 +1,141 @@
+TOPIC: Tracing Default Config/Rules Files to Their Secrets & ConfigMaps; Alertmanager & Operator Containers
+TIMESTAMP RANGE: 00:14:19 - 00:19:15
+
+[00:14:19] now you may
+[00:14:13] be asking where does the configuration
+[00:14:15] come from where does the rules file come
+[00:14:17] from right because we haven't defined
+[00:14:18] that
+[00:14:19] that is also part of the stack out of
+[00:14:21] the box you get this default
+[00:14:22] prometheus configuration file with
+[00:14:24] default configuration
+[00:14:26] and you get the default rules file and
+[00:14:28] these are created as config
+[00:14:30] maps so if we print out the config maps
+[00:14:33] we see there is a whole list of them so
+[00:14:36] it might be
+[00:14:37] actually difficult to search it in at
+[00:14:39] least so the way that you can actually
+[00:14:41] easily find that is here
+[00:14:44] for example for the config file right
+[00:14:47] here you have
+[00:14:48] the mount path right so it's prometheus
+[00:14:51] config and you have this yaml file
+[00:14:53] and if you go to the mouse you see
+[00:14:56] the path and you see where this mount is
+[00:14:59] coming from
+[00:15:00] right so first how the mount works is
+[00:15:02] you mount a volume
+[00:15:04] inside the pod and then the individual
+[00:15:07] containers
+[00:15:08] can actually mount those volumes inside
+[00:15:11] the container path
+[00:15:13] so they can access those mounts of the
+[00:15:15] pots so
+[00:15:16] this is the volume that was mounted
+[00:15:18] inside inside the pot
+[00:15:19] so we can go and check that so these are
+[00:15:22] the pod volumes
+[00:15:23] and we have the config one so this is
+[00:15:26] the one right here
+[00:15:28] and you see it's a secret type so it's
+[00:15:30] not a config map
+[00:15:31] it's a secret and this is the name of
+[00:15:33] the secret so we can go back
+[00:15:35] and check the secrets
+[00:15:40] and we can also look inside
+[00:15:43] so i'm gonna do uh get
+[00:15:47] secret and the name of the secret
+[00:15:50] this is the one and
+[00:15:54] we can do yemo output
+[00:15:58] and i'm also going to save it into a
+[00:16:00] secret
+[00:16:06] demo
+[00:16:09] let's clear that and let's see our
+[00:16:12] secret
+[00:16:13] so you see the prometheus yemo file
+[00:16:17] and this is the name that is mounted
+[00:16:19] here and this is obviously basic 64
+[00:16:22] encoded because the secret
+[00:16:23] but you can decode it and see all the
+[00:16:26] information there
+[00:16:27] and we can also see where a rules file
+[00:16:30] is coming from
+[00:16:31] so in the rules file config reloader we
+[00:16:34] have
+[00:16:34] mount and this comes from
+[00:16:40] the pod volume which is called
+[00:16:43] this long thing and if we go down
+[00:16:47] in the volumes part this is a config map
+[00:16:50] with the name of this so again i'm gonna
+[00:16:54] do
+[00:16:55] get config map with the name
+[00:16:58] and put it as yemo and i'm gonna save it
+[00:17:04] dot demo
+[00:17:07] like this and this is the rules file
+[00:17:10] so we have the name of the file here and
+[00:17:14] this is the file contents basically
+[00:17:17] where
+[00:17:17] the different rules are defined so we
+[00:17:20] have the alert
+[00:17:20] rules and some other stuff so this is
+[00:17:24] how you can check where this default
+[00:17:26] stuff is coming from and then you can
+[00:17:27] also check the configuration
+[00:17:29] and obviously when you have to adjust
+[00:17:31] something for example add a new endpoint
+[00:17:33] to
+[00:17:34] scrape you will go to the secret file
+[00:17:37] the prometheus yaml file and you're
+[00:17:39] gonna do adjustments there
+[00:17:40] in a later demo video i'll also show you
+[00:17:42] how to add an exporter
+[00:17:44] as a site container for for example a
+[00:17:46] database pod that you have running
+[00:17:48] and then configure prometheus to scrape
+[00:17:51] that
+[00:17:52] endpoint as well so in that video you
+[00:17:53] will see how to adjust the configuration
+[00:17:55] file so you can add a new scraping
+[00:17:57] endpoint
+[00:17:58] so let's also quickly check what's in
+[00:18:00] the alert manager
+[00:18:02] so here we have again the main container
+[00:18:04] which is alert manager
+[00:18:06] and we have all the configuration stuff
+[00:18:09] here as well
+[00:18:10] and this one also has a default
+[00:18:13] configuration file
+[00:18:14] alertmanager.yemo and the same helper
+[00:18:17] container
+[00:18:18] config reload and then we also have the
+[00:18:20] operator
+[00:18:21] which basically has this prometheus
+[00:18:23] operator you can also check what the
+[00:18:25] the image documentation what it does and
+[00:18:28] how it works
+[00:18:29] and this is basically the orchestrator
+[00:18:31] of the whole
+[00:18:32] prometheus monitoring stack so this
+[00:18:35] manages all the different moving parts
+[00:18:36] of that stack
+[00:18:38] it loads all this configuration stuff
+[00:18:40] and it kind of orchestrates
+[00:18:42] how everything works so all these things
+[00:18:45] are kind of
+[00:18:46] interconnected with each other but
+[00:18:48] obviously you don't need to understand
+[00:18:50] how
+[00:18:50] all these things work important thing to
+[00:18:52] understand is how to
+[00:18:54] add or adjust the alert rules
+[00:18:57] or alert configuration and the second
+[00:18:59] one is how to adjust the prometheus
+[00:19:01] configuration so you can add
+[00:19:03] new endpoints for example for scraping
+[00:19:05] so these are two things that you have to
+[00:19:07] understand
+[00:19:08] the rest is just for overview to have a
+[00:19:10] bit of understanding
+[00:19:11] how these components are made up

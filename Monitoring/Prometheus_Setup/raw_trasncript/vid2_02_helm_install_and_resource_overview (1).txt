@@ -1,0 +1,146 @@
+TOPIC: Demo — Helm Install of Prometheus Operator & Overview of Created Kubernetes Resources
+TIMESTAMP RANGE: 00:03:11 - 00:08:09
+(covers: helm install command, stateful sets, deployments, daemonset/node-exporter, kube-state-metrics, replica sets, services)
+
+[00:03:11] so let's jump right into the demo
+[00:03:12] clean mini cube state so i don't have
+[00:03:14] any components
+[00:03:16] here yet and i have
+[00:03:20] a link to prometheus operator helm chart
+[00:03:23] and here in the documentation i can see
+[00:03:27] the helm command to install that helm
+[00:03:30] chart
+[00:03:30] so i'm gonna take that
+[00:03:34] and we can give it a name so i'm gonna
+[00:03:37] call it prometheus
+[00:03:40] this is the repository name the helm
+[00:03:42] repository
+[00:03:43] the official one and the name of the
+[00:03:45] chart and i'm gonna execute this
+[00:03:48] and we will see all the different pieces
+[00:03:52] that will be created
+[00:03:53] from that helm chart so the execution is
+[00:03:56] done but this will take a couple of
+[00:03:57] minutes to actually start
+[00:03:59] up all the different components
+[00:04:04] so you see all the components are
+[00:04:07] running these are just the parts that
+[00:04:08] were created
+[00:04:09] and you saw how fast the actual
+[00:04:11] installation was with
+[00:04:12] helm it was just one command and all the
+[00:04:14] components got created
+[00:04:16] so now let's actually take a look at
+[00:04:18] everything or different parts that were
+[00:04:20] created
+[00:04:21] so i'm gonna do cube ctl get all
+[00:04:25] and here all the different kubernetes
+[00:04:28] components
+[00:04:29] of prometheus clusters so i had a clean
+[00:04:31] mini cube cluster these are
+[00:04:33] everything that was just created so
+[00:04:35] let's go through different parts these
+[00:04:37] are all the pods
+[00:04:39] and these are the services of different
+[00:04:41] prometheus stack
+[00:04:42] components and let's actually start from
+[00:04:44] here because these are the managing the
+[00:04:46] high level
+[00:04:47] components so we have two stateful sets
+[00:04:51] so the first one is prometheus itself
+[00:04:54] so here you see this weird chained name
+[00:04:57] there are
+[00:04:58] three prometheus names here and this is
+[00:05:01] the actual
+[00:05:02] core prometheus server based on the main
+[00:05:05] image
+[00:05:06] and here you see that the prometheus pod
+[00:05:09] stateful set was actually created and is
+[00:05:12] going to be managed
+[00:05:13] by the operator that's why you see the
+[00:05:15] upper prefix
+[00:05:16] here the other stateful set is the alert
+[00:05:19] manager which is another part of the
+[00:05:21] stack
+[00:05:22] here you see three deployments so we
+[00:05:25] have
+[00:05:26] prometheus operator itself this is
+[00:05:30] the main one that actually created
+[00:05:32] prometheus
+[00:05:33] and alert manager stateful sets that's
+[00:05:36] why they have the same
+[00:05:37] prefix here and we have graffana which
+[00:05:39] is its own deployment
+[00:05:41] and we have cube state metrics cubesat
+[00:05:44] metrics is basically its own helm chart
+[00:05:48] so it's a dependency of this help chart
+[00:05:50] that we just installed so
+[00:05:51] cube state metrics application basically
+[00:05:53] what it does
+[00:05:54] is it scrapes kubernetes component
+[00:05:58] metrics themselves so it monitors the
+[00:06:00] health of
+[00:06:01] deployments and stateful sets and parts
+[00:06:04] inside the cluster
+[00:06:06] and makes it available for prometheus to
+[00:06:09] scrape
+[00:06:10] which is pretty cool because you get
+[00:06:13] the kubernetes infrastructure monitoring
+[00:06:15] out of the box with this
+[00:06:16] setup so you don't have to configure
+[00:06:18] anything for that
+[00:06:20] and the replica sets are created by
+[00:06:22] deployment so
+[00:06:23] this is just underlying component of
+[00:06:25] this one
+[00:06:26] so it's the same for grafana keepstate
+[00:06:28] metrics and prometheus operator
+[00:06:30] and an interesting one you have a daemon
+[00:06:33] set
+[00:06:34] in this stack of node exporter so first
+[00:06:37] of all
+[00:06:37] daemon set is a component
+[00:06:41] which will run on every single
+[00:06:44] worker node of kubernetes that's what a
+[00:06:46] demon set
+[00:06:47] characteristic is and node exporter
+[00:06:51] component of prometheus basically what
+[00:06:53] it does is
+[00:06:54] it connects to the server itself
+[00:06:57] or it lays over the server and
+[00:07:00] it translates the server metrics
+[00:07:03] worker node metric so to say like cpu
+[00:07:06] usage the load on that server and all
+[00:07:09] the stuff
+[00:07:10] it transforms them into prometheus
+[00:07:12] metrics
+[00:07:13] so they can be scraped so that's also
+[00:07:16] pretty neat because you have
+[00:07:17] that information also configured inside
+[00:07:20] this stack
+[00:07:21] out of the box and obviously those pods
+[00:07:23] are just coming from the deployments and
+[00:07:25] stateful sets
+[00:07:27] and you have also a bunch of services
+[00:07:28] which each component
+[00:07:30] has its own you have an alert manager
+[00:07:31] grafana and so on
+[00:07:33] so just to put it in a perspective or in
+[00:07:36] a in a big picture perspective
+[00:07:38] we have set up the monitoring stack
+[00:07:40] itself that is going to monitor
+[00:07:42] different parts
+[00:07:43] and in addition to that by default you
+[00:07:46] already get
+[00:07:47] a out of the box monitoring
+[00:07:50] configuration
+[00:07:51] for your kubernetes cluster so your
+[00:07:53] worker notes
+[00:07:54] and the statistics on the worker nodes
+[00:07:57] are being monitored
+[00:07:58] and the kubernetes components like pods
+[00:08:01] and deployments and replicas
+[00:08:03] stateful sets and so on are also being
+[00:08:05] monitored
+[00:08:06] and this configuration is there out of
+[00:08:08] the box so

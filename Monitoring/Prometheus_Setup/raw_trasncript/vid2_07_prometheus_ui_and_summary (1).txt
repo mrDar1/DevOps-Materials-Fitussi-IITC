@@ -1,0 +1,59 @@
+TOPIC: Accessing the Prometheus UI (Alerts, Config, Targets, Rules) & Closing Summary
+TIMESTAMP RANGE: 00:23:24 - 00:25:40
+
+[00:23:24] port forward
+[00:23:46] and as we saw prometheus is running on
+[00:23:48] port 1990
+[00:23:51] so let's do that
+[00:23:54] t90 and here you have the prometheus ui
+[00:23:59] where you can also display the alerts
+[00:24:01] you can also display the configuration
+[00:24:02] which metric endpoints are being
+[00:24:04] executed and you can also
+[00:24:06] use the prom qr language to query
+[00:24:08] different stuff
+[00:24:09] so here you have the alerts some default
+[00:24:12] alerts
+[00:24:13] which are configured from the default
+[00:24:15] alert rules file
+[00:24:17] and here you can see the configuration
+[00:24:19] of prometheus
+[00:24:20] which is pretty long if you're just
+[00:24:22] starting off it might take time to
+[00:24:24] learn that because i think it's pretty
+[00:24:25] complex and here you can also display
+[00:24:27] the targets
+[00:24:29] so each target that are scraping where
+[00:24:32] here you see the pods that are
+[00:24:33] being monitored and their health status
+[00:24:37] and here you see for example some things
+[00:24:39] down
+[00:24:40] and here again you can see your rules
+[00:24:44] configuration
+[00:24:45] so prometheus ui can also be helpful or
+[00:24:48] interesting in some cases and you can
+[00:24:50] get a lot of information there as well
+[00:24:53] so to summarize basically we deployed
+[00:24:56] the whole prometheus monitoring stack
+[00:24:59] using helm
+[00:25:00] the deployment process was pretty easy
+[00:25:02] and straightforward it was just one
+[00:25:03] command
+[00:25:04] which basically in the background
+[00:25:06] creates the whole array of
+[00:25:08] components that make up the stack
+[00:25:11] and you saw like a very brief overview
+[00:25:14] of what these different components are
+[00:25:16] what they do
+[00:25:17] and in the later videos i will make a
+[00:25:18] prometheus demo where we configure
+[00:25:20] an additional metrics endpoint for um
+[00:25:24] for example a database application that
+[00:25:26] you have running in a cluster so
+[00:25:28] basically how you can monitor
+[00:25:29] different services that you have running
+[00:25:32] in the cluster
+[00:25:33] and also your own application by
+[00:25:36] exposing metrics and point
+[00:25:38] so thank you for watching and see you in
+[00:25:40] the next video
