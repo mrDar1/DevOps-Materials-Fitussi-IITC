@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fifaapp-backend
+  namespace: fifaapp
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: fifaapp-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+  namespaceSelector:
+    matchNames:
+      - fifaapp

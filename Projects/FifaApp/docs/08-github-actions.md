@@ -428,5 +428,4 @@ You'll meet the others in real teams — this is a deliberate scope cut, not a b
 solutions/08-github-actions/
 ```
 
-**Next:** Nothing — the loop is closed. Code push → tests → image → GitOps → cluster,
-with no human in the middle.
+**Next:** Add observability with Prometheus and Grafana (Stage 9)
