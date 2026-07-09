@@ -26,12 +26,15 @@ jenkins:
                 user: "jenkins"
             instanceCapStr: "2"
             removeVolumes: true
+            pullStrategy: PULL_NEVER
           - labelString: "docker-agent-python"
             dockerTemplateBase:
               image: "labs-agent-python:latest"
+              mountsString: "type=bind,src=/Users/lironefitoussi/Developer/DevOps-Materials/Jenkins/labs/repo,dst=/repo"
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
                 user: "jenkins"
             instanceCapStr: "2"
             removeVolumes: true
+            pullStrategy: PULL_NEVER

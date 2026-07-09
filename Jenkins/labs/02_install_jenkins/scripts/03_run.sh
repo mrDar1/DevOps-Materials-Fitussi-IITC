@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/.."
-LABS_DIR="$(pwd)"
+LABS_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
 docker rm -f jenkins-lab >/dev/null 2>&1 || true
 
@@ -13,7 +12,7 @@ docker run -d \
   -p 50000:50000 \
   -v jenkins-lab-home:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$LABS_DIR/casc:/var/jenkins_home/casc:ro" \
+  -v "$LABS_DIR/04_agents_docker_cloud/jenkins.yaml:/var/jenkins_home/casc/jenkins.yaml:ro" \
   -v "$LABS_DIR/repo:/repo:ro" \
   labs-jenkins-master:latest
 
