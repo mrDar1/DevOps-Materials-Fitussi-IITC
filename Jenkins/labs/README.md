@@ -53,8 +53,10 @@ the original material.
 
 - **macOS** — fully verified end-to-end (Apple Silicon; agent images run under amd64 emulation,
   which makes the *first* build per agent label slow — see Lab 04's patience note).
-- **Linux** — same bash scripts and `docker.sock` mount work unchanged; on amd64 hosts the
-  `--platform linux/amd64` flags in the build script are simply no-ops and agents run native.
+- **Linux** — fully verified end-to-end on a fresh Ubuntu 24.04 amd64 EC2 instance
+  (`docker.io` from apt, nothing preinstalled): image builds, container boot with CasC, both
+  freestyle jobs, the pipeline (all stages green), and Blue Ocean all passed unmodified. On amd64
+  the `--platform linux/amd64` flags are no-ops and agents run native.
 - **Windows** — run everything inside **WSL2** (with Docker Desktop's WSL integration enabled)
   and it behaves exactly like the Linux case: bash, `python3`, and the `/var/run/docker.sock`
   mount all work there. The scripts are not written for PowerShell/cmd, and plain Git Bash is
