@@ -1,0 +1,37 @@
+jenkins:
+  systemMessage: "Jenkins Labs - DevOps-Materials"
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  clouds:
+    - docker:
+        name: "docker"
+        dockerApi:
+          dockerHost:
+            uri: "unix:///var/run/docker.sock"
+        templates:
+          - labelString: "docker-agent-alpine"
+            dockerTemplateBase:
+              image: "labs-agent-alpine:latest"
+            remoteFs: "/home/jenkins/agent"
+            connector:
+              attach:
+                user: "jenkins"
+            instanceCapStr: "2"
+            removeVolumes: true
+          - labelString: "docker-agent-python"
+            dockerTemplateBase:
+              image: "labs-agent-python:latest"
+            remoteFs: "/home/jenkins/agent"
+            connector:
+              attach:
+                user: "jenkins"
+            instanceCapStr: "2"
+            removeVolumes: true
