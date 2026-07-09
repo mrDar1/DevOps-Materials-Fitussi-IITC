@@ -2,6 +2,13 @@
 set -euo pipefail
 LABS_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# Generate the CasC file from its template, substituting this machine's absolute
+# path to labs/repo (the docker-plugin bind-mounts it into every agent container,
+# and the docker daemon only understands host paths).
+sed "s|@LABS_REPO_HOST_PATH@|$LABS_DIR/repo|" \
+  "$LABS_DIR/04_agents_docker_cloud/jenkins.yaml.template" \
+  > "$LABS_DIR/04_agents_docker_cloud/jenkins.yaml"
+
 docker rm -f jenkins-lab >/dev/null 2>&1 || true
 
 docker run -d \

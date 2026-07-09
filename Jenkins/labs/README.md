@@ -25,7 +25,10 @@ labs/
     README.md
     Dockerfile.agent-alpine       plain agent image (label docker-agent-alpine)
     Dockerfile.agent-python       agent image with python3/pip (label docker-agent-python)
-    jenkins.yaml                  Configuration-as-Code: admin user + docker cloud + templates
+    jenkins.yaml.template         Configuration-as-Code: admin user + docker cloud + templates
+                                  (03_run.sh generates jenkins.yaml from it, substituting this
+                                  machine's absolute path to repo/ — the generated file is
+                                  gitignored, edit the template)
   05_pipelines_jenkinsfile/
     README.md
     my_first_build_pipeline.xml   pipeline job pointing at repo/Jenkinsfile
@@ -45,6 +48,21 @@ instructor's real companion repo for this course (added after the labs were firs
 deviations documented in Lab 05's README (a `pipes`-module Python compat fix and a git
 safe-directory fix), both being environment quirks of running this in 2026 rather than mistakes in
 the original material.
+
+## Platform support
+
+- **macOS** — fully verified end-to-end (Apple Silicon; agent images run under amd64 emulation,
+  which makes the *first* build per agent label slow — see Lab 04's patience note).
+- **Linux** — same bash scripts and `docker.sock` mount work unchanged; on amd64 hosts the
+  `--platform linux/amd64` flags in the build script are simply no-ops and agents run native.
+- **Windows** — run everything inside **WSL2** (with Docker Desktop's WSL integration enabled)
+  and it behaves exactly like the Linux case: bash, `python3`, and the `/var/run/docker.sock`
+  mount all work there. The scripts are not written for PowerShell/cmd, and plain Git Bash is
+  hit-or-miss (path mangling, no python3) — WSL2 is the supported route.
+
+Nothing is machine-specific: the one absolute host path the setup needs (the docker-plugin
+bind-mounts `repo/` into agent containers, and the Docker daemon only understands host paths) is
+substituted into the CasC config at `03_run.sh` time from wherever you cloned the repo.
 
 ## Running it yourself
 

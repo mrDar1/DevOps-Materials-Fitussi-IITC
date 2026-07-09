@@ -30,7 +30,7 @@ jenkins:
           - labelString: "docker-agent-python"
             dockerTemplateBase:
               image: "labs-agent-python:latest"
-              mountsString: "type=bind,src=/Users/lironefitoussi/Developer/DevOps-Materials/Jenkins/labs/repo,dst=/repo"
+              mountsString: "type=bind,src=@LABS_REPO_HOST_PATH@,dst=/repo"
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:

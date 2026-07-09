@@ -5,9 +5,12 @@ templates, running jobs on docker agents, poll SCM).
 
 Instead of clicking through **Manage Jenkins → Nodes & Clouds → Configure Clouds → Add Docker**
 as in the video, the whole cloud + both agent templates are declared once in
-[`jenkins.yaml`](jenkins.yaml) (Configuration-as-Code, mounted into the master by Lab 02's run
-script) and applied automatically on container boot. Same settings, same end state, reproducible
-from a text file instead of manual UI clicks.
+[`jenkins.yaml.template`](jenkins.yaml.template) (Configuration-as-Code) and applied automatically
+on container boot. Same settings, same end state, reproducible from a text file instead of manual
+UI clicks. Lab 02's `03_run.sh` renders the template into `jenkins.yaml` (gitignored), replacing
+the `@LABS_REPO_HOST_PATH@` placeholder with this machine's absolute path to `labs/repo` — that
+keeps the config portable across machines while giving the Docker daemon the real host path it
+needs for the bind mount. Edit the template, not the generated file.
 
 Agent images in this folder (built by Lab 02's `scripts/01_build_images.sh`):
 
