@@ -53,6 +53,11 @@ drwxr-xr-x 12 jenkins jenkins  384 ... .git
 -rw-r--r--  1 jenkins jenkins  855 ... Jenkinsfile
 ```
 
+**Patience note**: on Apple Silicon the first build per agent label can sit queued for a minute or
+so — the agent images run under amd64 emulation and the first container spawn is slow. The build
+picks up on its own; don't start debugging labels like the instructor does in the video until it's
+been stuck well past that.
+
 ## Bugs hit and fixed along the way
 
 1. `dockerTemplateBase.volumesString` — CasC rejected it outright: `'volumesString' is deprecated`.
